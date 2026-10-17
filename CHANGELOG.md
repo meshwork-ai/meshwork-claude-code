@@ -2,7 +2,8 @@
 
 > **업데이트하는 법**
 > 1. `/plugin` → **Marketplaces** → `jwbae-plugins` → **Update marketplace** — 지금 세션에는 바로 적용됩니다
-> 2. 켜져 있던 **다른 세션**은 각 세션에서 `/reload-plugins` 를 한 번 — 재시작은 필요 없습니다
+> 2. 켜져 있던 **다른 세션**은 각 세션에서 `/reload-plugins` 를 한 번
+> 3. **팀 규약은 세션을 시작할 때만 들어갑니다** — `/reload-plugins` · `--resume` 으로는 옛 규약이 남으니, 바뀐 규약까지 쓰려면 **새 세션**으로 켜세요
 >
 > 💡 같은 화면에서 **Enable auto-update** 를 켜두면 Claude Code 를 켤 때마다 새 버전을 받아둡니다.
 
