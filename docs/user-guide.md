@@ -351,8 +351,9 @@ alias claude-team-yolo='TEAM_RELAY_GATEWAY=1 claude --dangerously-skip-permissio
 
 1. `/plugin` → **Marketplaces** → `jwbae-plugins` → **Update marketplace**
    → `/plugin` 창을 닫으면 **지금 세션에는 바로 적용**된다 (Claude Code 가 `/reload-plugins` 를 대신 돌린다)
-2. 켜져 있던 **다른 세션**은 이전 버전으로 계속 돈다 — 각 세션에서 `/reload-plugins` 를 한 번. 재시작은 필요 없다
-3. 권장: 같은 화면에서 **Enable auto-update** 를 켜두면, Claude Code 를 켤 때마다 새 버전을 받아두고
+2. 켜져 있던 **다른 세션**은 이전 버전으로 계속 돈다 — 각 세션에서 `/reload-plugins` 를 한 번
+3. **팀 규약(에이전트가 따르는 규칙)은 세션을 시작할 때만 들어간다** — `/reload-plugins` · `--resume` 으로는 옛 규약이 남는다. 바뀐 규약까지 확실히 쓰려면 **새 세션**으로 켠다
+4. 권장: 같은 화면에서 **Enable auto-update** 를 켜두면, Claude Code 를 켤 때마다 새 버전을 받아두고
    *"Plugin updated: team-relay · Run /reload-plugins to apply"* 라고 알려준다
 
 무엇이 바뀌었는지는 [업데이트 내역(CHANGELOG)](../CHANGELOG.md) 에 있다. 터미널에서는
