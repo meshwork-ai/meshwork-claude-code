@@ -1,0 +1,7 @@
+packages:
+  - plugin
+
+# 공급망(아키텍처 §18.2) — 새로 나온 버전은 3일 기다린 뒤 받고, 설치 스크립트는 허용한 것만 돈다
+minimumReleaseAge: 4320
+allowBuilds:
+  esbuild: true

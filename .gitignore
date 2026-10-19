@@ -1,8 +1,9 @@
 node_modules/
-relay/data/
+coverage/
 e2e/
-.env
 *.log
-.DS_Store
 *.pid
+.DS_Store
+.env
+.env.*
 .playwright-mcp/

@@ -43,8 +43,8 @@ export function createClaudeHost(mcp: Server): Host {
               choice: {
                 type: 'string',
                 title: spec.title,
-                enum: spec.options.map(o => o.value),
-                enumNames: spec.options.map(o => o.label),
+                enum: spec.options.map((o) => o.value),
+                enumNames: spec.options.map((o) => o.label),
               },
             },
             required: ['choice'],

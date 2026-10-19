@@ -8,7 +8,16 @@
  * 쓰기는 config.json 과 같은 규칙(임시 파일 → rename, 0600)을 따른다. 여러 세션이 같은
  * 파일을 쓰므로 반쪽 파일이 남아선 안 된다.
  */
-import { chmodSync, mkdirSync, readFileSync, readdirSync, renameSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
+import {
+  chmodSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  renameSync,
+  statSync,
+  unlinkSync,
+  writeFileSync,
+} from 'node:fs'
 import { dirname, join } from 'node:path'
 import { CONFIG_PATH } from './config'
 
@@ -58,14 +67,23 @@ export function sweepStaleStates(maxAgeMs = 60 * 60 * 1000, now = Date.now()): v
       if (m && !alive(Number(m[1]))) unlinkSync(join(STATE_DIR, f))
     }
     // v0.7.0 의 단일 파일 잔재 — 남아 있으면 상태줄이 엉뚱한 값을 읽는다
-    try { unlinkSync(join(STATE_DIR, 'state.json')) } catch { /* 없으면 그만 */ }
+    try {
+      unlinkSync(join(STATE_DIR, 'state.json'))
+    } catch {
+      /* 없으면 그만 */
+    }
   } catch {
     /* 청소 실패는 무해하다 */
   }
 }
 
 function alive(pid: number): boolean {
-  try { process.kill(pid, 0); return true } catch (e) { return (e as NodeJS.ErrnoException).code === 'EPERM' }
+  try {
+    process.kill(pid, 0)
+    return true
+  } catch (e) {
+    return (e as NodeJS.ErrnoException).code === 'EPERM'
+  }
 }
 
 /**
@@ -84,7 +102,11 @@ export function namePath(ppid = process.ppid): string {
 
 export function readSessionName(ppid = process.ppid): string | undefined {
   try {
-    const t = readFileSync(namePath(ppid), 'utf8').replace(/[\u0000-\u001f\u007f]/g, '').trim()
+    // 상태줄 스크립트가 적은 세션 이름에서 제어 문자를 지운다 — 일부러 제어 문자 범위를 쓴다
+    const t = readFileSync(namePath(ppid), 'utf8')
+      // eslint-disable-next-line no-control-regex
+      .replace(/[\u0000-\u001f\u007f]/g, '')
+      .trim()
     return t ? t.slice(0, 120) : undefined
   } catch {
     return undefined

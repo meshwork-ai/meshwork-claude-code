@@ -27,13 +27,15 @@ export function bindRooms(cfg: Config, rooms: string[]): Config {
   if (!SESSION_ID) return cfg
   const sessions = { ...(cfg.sessions ?? {}), [SESSION_ID]: rooms }
   const keys = Object.keys(sessions)
-  if (keys.length > SESSION_KEEP) for (const k of keys.slice(0, keys.length - SESSION_KEEP)) delete sessions[k]
+  if (keys.length > SESSION_KEEP)
+    for (const k of keys.slice(0, keys.length - SESSION_KEEP)) delete sessions[k]
   return { ...cfg, sessions }
 }
 
 /** 설정 파일 — 머신당 하나, 홈 디렉토리 고정. cwd·세션 id 와 무관하다 */
 export const CONFIG_PATH =
-  process.env.TEAM_RELAY_CONFIG ?? join(homedir(), '.claude', 'channels', 'team-relay', 'config.json')
+  process.env.TEAM_RELAY_CONFIG ??
+  join(homedir(), '.claude', 'channels', 'team-relay', 'config.json')
 
 export function loadConfig(): Config | null {
   try {
@@ -65,9 +67,13 @@ export function saveConfig(cfg: Config, opts: { roomsFromServer?: boolean } = {}
   if (disk) {
     const sessions: Record<string, string[]> = { ...(disk.sessions ?? {}) }
     const mine = SESSION_ID ? cfg.sessions?.[SESSION_ID] : undefined
-    if (SESSION_ID && mine) { delete sessions[SESSION_ID]; sessions[SESSION_ID] = mine } // 항상 최신 = 맨 뒤
+    if (SESSION_ID && mine) {
+      delete sessions[SESSION_ID]
+      sessions[SESSION_ID] = mine
+    } // 항상 최신 = 맨 뒤
     const keys = Object.keys(sessions)
-    if (keys.length > SESSION_KEEP) for (const k of keys.slice(0, keys.length - SESSION_KEEP)) delete sessions[k]
+    if (keys.length > SESSION_KEEP)
+      for (const k of keys.slice(0, keys.length - SESSION_KEEP)) delete sessions[k]
     if (keys.length) next.sessions = sessions
     if (!opts.roomsFromServer && disk.rooms) next.rooms = disk.rooms
   }

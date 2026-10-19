@@ -79,22 +79,35 @@ export function saveMemoryCache(m: MemoryCache): void {
 export function memoryFromWelcome(f: RelayFrame, at = Date.now()): MemoryCache | null {
   const mem = f.memory as Record<string, { rev?: number }> | undefined
   if (!mem || typeof f.memoryText !== 'string') return null
-  return { at, text: f.memoryText, revs: Object.fromEntries(Object.entries(mem).map(([r, x]) => [r, Number(x.rev ?? 0)])) }
+  return {
+    at,
+    text: f.memoryText,
+    revs: Object.fromEntries(Object.entries(mem).map(([r, x]) => [r, Number(x.rev ?? 0)])),
+  }
 }
 
 /**
  * 기동 선접속 — 방을 받지 않는(gateway:false) 1회 접속으로 welcome 의 규약·방 메모리를 받아온다.
  * 연결 상태 기계(재접속·세대)와 완전히 분리된 일회용 소켓 — 실패는 조용히 null.
  */
-export function fetchWelcomeOnce(cfg: Config, timeoutMs: number): Promise<{ protocol: ProtocolCache | null; memory: MemoryCache | null } | null> {
-  return new Promise(resolve => {
+export function fetchWelcomeOnce(
+  cfg: Config,
+  timeoutMs: number,
+): Promise<{ protocol: ProtocolCache | null; memory: MemoryCache | null } | null> {
+  return new Promise((resolve) => {
     let done = false
     let sock: WebSocket | null = null
-    const finish = (v: { protocol: ProtocolCache | null; memory: MemoryCache | null } | null): void => {
+    const finish = (
+      v: { protocol: ProtocolCache | null; memory: MemoryCache | null } | null,
+    ): void => {
       if (done) return
       done = true
       clearTimeout(t)
-      try { sock?.close() } catch { /* 이미 닫힘 */ }
+      try {
+        sock?.close()
+      } catch {
+        /* 이미 닫힘 */
+      }
       resolve(v)
     }
     const t = setTimeout(() => finish(null), timeoutMs)
@@ -105,24 +118,39 @@ export function fetchWelcomeOnce(cfg: Config, timeoutMs: number): Promise<{ prot
       return
     }
     sock.addEventListener('open', () =>
-      sock!.send(JSON.stringify({ type: 'hello', v: PROTO, plugin: PLUGIN_VERSION, token: cfg.token, gateway: false, id: 0 })),
+      sock!.send(
+        JSON.stringify({
+          type: 'hello',
+          v: PROTO,
+          plugin: PLUGIN_VERSION,
+          token: cfg.token,
+          gateway: false,
+          id: 0,
+        }),
+      ),
     )
-    sock.addEventListener('message', ev => {
+    sock.addEventListener('message', (ev) => {
       try {
         const f = JSON.parse(String(ev.data)) as RelayFrame
         if (f.type === 'welcome') {
           const p = f.protocol as { rev?: number; instructions?: string } | undefined
           finish({
-            protocol: p && typeof p.instructions === 'string' ? { rev: Number(p.rev ?? 0), instructions: p.instructions } : null,
+            protocol:
+              p && typeof p.instructions === 'string'
+                ? { rev: Number(p.rev ?? 0), instructions: p.instructions }
+                : null,
             memory: memoryFromWelcome(f),
           })
         } else if (f.type === 'error') {
           finish(null)
         }
-      } catch { /* 무시 */ }
+      } catch {
+        /* 무시 */
+      }
     })
-    sock.addEventListener('error', () => { /* close 가 뒤따른다 */ })
+    sock.addEventListener('error', () => {
+      /* close 가 뒤따른다 */
+    })
     sock.addEventListener('close', () => finish(null))
   })
 }
-

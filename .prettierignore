@@ -1,0 +1,6 @@
+# 문서 · 번들 결과물은 그대로 둔다
+**/*.md
+**/*.html
+pnpm-lock.yaml
+plugin/dist/
+**/coverage/

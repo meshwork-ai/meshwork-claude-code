@@ -41,7 +41,7 @@ const NOTE: Record<RoomMark, string> = {
 
 /** 목록 렌더 — 텍스트 출력과 폴백에서 함께 쓴다 */
 export function renderRooms(list: RoomStatus[]): string {
-  return list.map(r => `  ${ICON[r.mark]} ${r.room} (${r.label})   ${NOTE[r.mark]}`).join('\n')
+  return list.map((r) => `  ${ICON[r.mark]} ${r.room} (${r.label})   ${NOTE[r.mark]}`).join('\n')
 }
 
 /** 선택지 라벨 — 🔵 는 "그 세션이 수신을 잃는다"를 **고르기 전에** 알린다 */
@@ -52,5 +52,5 @@ export function choiceLabel(r: RoomStatus): string {
 
 /** 아무도 안 받는 방 */
 export function emptyRooms(list: RoomStatus[]): string[] {
-  return list.filter(r => r.mark === 'empty').map(r => r.room)
+  return list.filter((r) => r.mark === 'empty').map((r) => r.room)
 }

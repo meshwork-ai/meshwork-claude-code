@@ -14,13 +14,27 @@
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
-import { chmodSync, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, statSync, writeFileSync } from 'node:fs'
+import {
+  chmodSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  renameSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
-import type { Config, ProtocolCache, RelayFrame, RouteEntry } from './core/types'
+import type { Config, RelayFrame } from './core/types'
 import {
-  FALLBACK_INSTRUCTIONS, PROTOCOL_TIMEOUT_MS, fetchWelcomeOnce, loadMemoryCache, loadProtocolCache,
-  memoryFromWelcome, saveMemoryCache, saveProtocolCache,
+  FALLBACK_INSTRUCTIONS,
+  PROTOCOL_TIMEOUT_MS,
+  fetchWelcomeOnce,
+  loadMemoryCache,
+  loadProtocolCache,
+  memoryFromWelcome,
+  saveMemoryCache,
+  saveProtocolCache,
 } from './core/protocol'
 import { PLUGIN_VERSION, PROTO } from './core/version'
 import { choiceLabel, classifyRooms, emptyRooms, renderRooms } from './core/rooms'
@@ -29,13 +43,20 @@ import { type SessionState, statePath, sweepStaleStates, writeState } from './co
 import WS from './core/ws'
 import { createClaudeHost } from './host/claude'
 import {
-  CONFIG_PATH, bindRooms, loadConfig, myRooms, normalizeUrl, saveConfig,
+  CONFIG_PATH,
+  bindRooms,
+  loadConfig,
+  myRooms,
+  normalizeUrl,
+  saveConfig,
 } from './core/config'
 
 /** 이 파일(또는 번들)이 놓인 자리 — 소스는 plugin/, 번들은 plugin/dist/ */
 const PKG_DIR = new URL('.', import.meta.url).pathname
 /** plugin/ 루트 — 번들이면 한 단계 위다 */
-const PLUGIN_DIR = /\/dist\/?$/.test(PKG_DIR) ? dirname(PKG_DIR.replace(/\/$/, '')) : PKG_DIR.replace(/\/$/, '')
+const PLUGIN_DIR = /\/dist\/?$/.test(PKG_DIR)
+  ? dirname(PKG_DIR.replace(/\/$/, ''))
+  : PKG_DIR.replace(/\/$/, '')
 
 /**
  * 상태줄 스크립트의 **고정 경로**.
@@ -59,7 +80,11 @@ function installStatusline(): void {
     const src = join(PLUGIN_DIR, 'statusline.sh')
     const body = readFileSync(src, 'utf8')
     let current: string | null = null
-    try { current = readFileSync(STATUSLINE_PATH, 'utf8') } catch { /* 처음 */ }
+    try {
+      current = readFileSync(STATUSLINE_PATH, 'utf8')
+    } catch {
+      /* 처음 */
+    }
     if (current === body) return // 같은 내용이면 건드리지 않는다
     mkdirSync(dirname(STATUSLINE_PATH), { recursive: true })
     const tmp = `${STATUSLINE_PATH}.${process.pid}.tmp`
@@ -74,7 +99,6 @@ function installStatusline(): void {
 /** 요청 응답 타임아웃 — 테스트에서 줄일 수 있게 env 로 노출 */
 const REQUEST_TIMEOUT_MS = Number(process.env.TEAM_RELAY_REQUEST_TIMEOUT_MS ?? 5000)
 
-
 /**
  * 팀 세션인가 — claude-team(-yolo) 으로 켠 세션만 팀 기능을 쓴다 (0.10.0).
  *
@@ -84,7 +108,8 @@ const REQUEST_TIMEOUT_MS = Number(process.env.TEAM_RELAY_REQUEST_TIMEOUT_MS ?? 5
  * 규약·메모리도 넣지 않고, 팀 도구는 안내만 한다(진단·위임 등록표는 이 컴퓨터 안의 일이라 쓴다).
  */
 const IS_TEAM = process.env.TEAM_RELAY_GATEWAY === '1'
-const NOT_TEAM = '이 세션에서는 team-relay 를 쓸 수 없습니다 — claude-team 으로 실행했는지 확인해주세요'
+const NOT_TEAM =
+  '이 세션에서는 team-relay 를 쓸 수 없습니다 — claude-team 으로 실행했는지 확인해주세요'
 /** 일반 세션에서도 쓰는 도구 — 서버와 무관하게 이 컴퓨터 안에서 끝난다 */
 const LOCAL_TOOLS = new Set(['team_doctor', 'team_route'])
 
@@ -99,12 +124,20 @@ let memoryFresh = false
   const got = cfg0 && IS_TEAM ? await fetchWelcomeOnce(cfg0, PROTOCOL_TIMEOUT_MS) : null
   if (got?.protocol) {
     protocolCache = got.protocol
-    try { saveProtocolCache(got.protocol) } catch { /* 캐시 실패는 기동을 막지 않는다 */ }
+    try {
+      saveProtocolCache(got.protocol)
+    } catch {
+      /* 캐시 실패는 기동을 막지 않는다 */
+    }
   }
   if (got?.memory) {
     memoryCache = got.memory
     memoryFresh = true
-    try { saveMemoryCache(got.memory) } catch { /* 위와 같다 */ }
+    try {
+      saveMemoryCache(got.memory)
+    } catch {
+      /* 위와 같다 */
+    }
   }
 }
 /**
@@ -145,7 +178,9 @@ function syncSessionName(): void {
   const name = host.sessionName()
   if (!name || name === sentName) return
   sentName = name
-  void request({ type: 'session_info', name }).catch(() => { sentName = undefined }) // 다음 박동에 다시
+  void request({ type: 'session_info', name }).catch(() => {
+    sentName = undefined
+  }) // 다음 박동에 다시
 }
 
 /** 마지막 치명 사유 — statusline 이 "왜 안 되는지"까지 보여줄 수 있게 (v0.7 §3.3) */
@@ -217,14 +252,18 @@ function notifyMemory(room: string, text: string): void {
 /** welcome 의 메모리를 이번 세션에 넣은 것과 비교한다 — 기동 때 서버에 못 닿았다면 여기서 따라잡는다 */
 function checkMemory(frame: RelayFrame): void {
   const next = memoryFromWelcome(frame)
-  if (!next) return                                   // 메모리를 모르는 서버 (PROTO 3 이하)
+  if (!next) return // 메모리를 모르는 서버 (PROTO 3 이하)
   const rooms = frame.memory as Record<string, { rev: number; text: string }>
   for (const [room, m] of Object.entries(rooms)) {
     if ((injectedMemory[room] ?? 0) !== m.rev) notifyMemory(room, m.text)
   }
   injectedMemory = { ...next.revs }
   memoryCache = next
-  try { saveMemoryCache(next) } catch { /* 저장 실패는 동작을 막지 않는다 */ }
+  try {
+    saveMemoryCache(next)
+  } catch {
+    /* 저장 실패는 동작을 막지 않는다 */
+  }
 }
 
 function applyWelcome(frame: RelayFrame): void {
@@ -238,7 +277,11 @@ function applyWelcome(frame: RelayFrame): void {
   let next: Config = { ...cfg, rooms }
   delete next.name // v1 잔재 제거
   if (heldRooms.length) next = bindRooms(next, heldRooms)
-  try { saveConfig(next, { roomsFromServer: true }) } catch { /* 저장 실패는 동작을 막지 않는다 */ }
+  try {
+    saveConfig(next, { roomsFromServer: true })
+  } catch {
+    /* 저장 실패는 동작을 막지 않는다 */
+  }
   if (lost.length) {
     void host.notify(
       `[담당 실패] 다음 방은 이 세션이 수신을 맡지 못했습니다: ${lost.join(', ')} — 대개 다른 세션이 이미 그 방을 담당 중이기 때문입니다(세션 시작만으로는 남의 담당을 뺏지 않습니다). 이 세션으로 가져오려면 team_room 을 실행하세요 — 그때는 그 세션이 수신을 잃습니다. 참가하지 않은 방이라면 초대코드가 필요합니다.`,
@@ -262,7 +305,6 @@ function maybeUpdateProtocolCache(frame: RelayFrame): void {
   }
 }
 
-
 // ── MCP 서버 ─────────────────────────────────────────────
 const mcp = new Server(
   { name: 'team-relay', version: PLUGIN_VERSION },
@@ -277,7 +319,9 @@ const mcp = new Server(
     // 못 받으면 보안 경계 조항만 담은 내장 폴백으로 기동한다 (thin client, v1 §2.4)
     // 일반 세션에는 한 줄만 — "팀 기능은 어디서 쓰나" 를 물으면 답할 수 있을 만큼
     instructions: IS_TEAM
-      ? [protocolCache?.instructions ?? FALLBACK_INSTRUCTIONS, memorySection()].filter(Boolean).join('\n\n')
+      ? [protocolCache?.instructions ?? FALLBACK_INSTRUCTIONS, memorySection()]
+          .filter(Boolean)
+          .join('\n\n')
       : 'team-relay: 이 세션은 팀 세션이 아니다 — 팀 기능(팀원에게 묻기·답장 등)은 claude-team 으로 켠 세션에서만 쓴다.',
   },
 )
@@ -320,7 +364,10 @@ let joinInProgress = false
  * 버린다(오배정 방지). push 프레임(message·expired·박탈 통지)은 id 없이 온다.
  */
 let nextReqId = 0
-const pending = new Map<number, { resolve: (f: RelayFrame) => void; timer: ReturnType<typeof setTimeout> }>()
+const pending = new Map<
+  number,
+  { resolve: (f: RelayFrame) => void; timer: ReturnType<typeof setTimeout> }
+>()
 
 function log(msg: string): void {
   process.stderr.write(`team-relay: ${msg}\n`)
@@ -385,7 +432,7 @@ function handleFrame(frame: RelayFrame, sock?: WebSocket): void {
   // room_lost push — 다른 세션이 이 방 담당을 가져갔다 (v2)
   if (frame.type === 'room_lost') {
     const room = String(frame.room ?? '')
-    heldRooms = heldRooms.filter(r => r !== room)
+    heldRooms = heldRooms.filter((r) => r !== room)
     exportState()
     void host.notify(
       `[수신 이전] '${room}' 방의 수신을 다른 세션이 가져갔습니다. 이 세션은 그 방 메시지를 더 이상 받지 않습니다. 이 세션에서 다시 받으려면 team_room 으로 담당을 되찾으세요(그러면 그 세션이 수신을 잃습니다).`,
@@ -397,24 +444,39 @@ function handleFrame(frame: RelayFrame, sock?: WebSocket): void {
   if (frame.type === 'noack') {
     void host.notify(
       `[무응답] ${String(frame.to ?? '')}이(가) 아직 답하지 않았습니다 — 세션이 한도 초과·장기 작업·자리 비움 상태일 수 있습니다. 기다릴지, 다른 사람에게 물을지 사용자에게 알려 판단을 받아라. 재발신을 자의로 반복하지 마라.`,
-      { kind: 'noack', to: String(frame.to ?? ''), room: String(frame.room ?? ''), thread: String(frame.thread ?? '') },
+      {
+        kind: 'noack',
+        to: String(frame.to ?? ''),
+        room: String(frame.room ?? ''),
+        thread: String(frame.thread ?? ''),
+      },
     )
     return
   }
   // 게이트웨이 박탈(replaced)·차단(revoked) — 재접속하지 않고(핑퐁 방지) 사용자에게 알린다
-  if (frame.type === 'error' && (frame.reason === 'replaced_by_new_gateway' || frame.reason === 'revoked')) {
+  if (
+    frame.type === 'error' &&
+    (frame.reason === 'replaced_by_new_gateway' || frame.reason === 'revoked')
+  ) {
     // 이 통지가 도착한 소켓이 현재 링크일 때만 박탈 처리 (리뷰 C1) — 유령(옛) 소켓으로 온
     // 통지가 멀쩡한 새 링크를 오염시키고 허위 '수신 이전' 알림을 내면 안 된다.
     if (sock && sock !== ws) {
       deliberateClose.add(sock)
-      try { sock.close() } catch { /* 이미 닫힘 */ }
+      try {
+        sock.close()
+      } catch {
+        /* 이미 닫힘 */
+      }
       return
     }
     if (ws) {
       deliberateClose.add(ws) // close 리스너가 재접속을 걸지 않게
       wsReady = false
     }
-    if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null }
+    if (reconnectTimer) {
+      clearTimeout(reconnectTimer)
+      reconnectTimer = null
+    }
     if (frame.reason === 'revoked') reconnectHalted = true // 차단 — 도구 호출로도 루프 부활 금지 (m1)
     lastError = String(frame.reason)
     exportState()
@@ -436,7 +498,7 @@ function handleFrame(frame: RelayFrame, sock?: WebSocket): void {
 function openSocket(url: string, onOpen: (sock: WebSocket) => void): WebSocket {
   const sock = new WS(url)
   sock.addEventListener('open', () => onOpen(sock))
-  sock.addEventListener('message', ev => {
+  sock.addEventListener('message', (ev) => {
     try {
       handleFrame(JSON.parse(String(ev.data)) as RelayFrame, sock)
     } catch {
@@ -479,7 +541,7 @@ async function connectWithConfig(): Promise<RelayFrame | null> {
   if (ws && wsReady) return null
   if (connectPromise) return connectPromise // 진행 중인 시도에 합류 (경합·즉시이탈 둘 다 방지)
   const epoch = connectEpoch
-  connectPromise = new Promise(resolve => {
+  connectPromise = new Promise((resolve) => {
     let settled = false
     const finish = (v: RelayFrame | null): void => {
       if (settled) return
@@ -492,7 +554,7 @@ async function connectWithConfig(): Promise<RelayFrame | null> {
     finishConnect = finish
     // 실패 경로는 close 리스너가 즉시 종결 — 이 fallback 은 그마저 안 올 때의 안전망
     const fallback = setTimeout(() => finish(null), 5000)
-    connectingSock = openSocket(cfg.url, s => {
+    connectingSock = openSocket(cfg.url, (s) => {
       if (connectingSock === s) connectingSock = null
       // 구세대(그 사이 join/서버변경) 또는 이미 종결된 시도 — 채택 금지
       if (epoch !== connectEpoch || settled) {
@@ -503,10 +565,16 @@ async function connectWithConfig(): Promise<RelayFrame | null> {
       }
       ws = s
       void request({
-        type: 'hello', v: PROTO, plugin: PLUGIN_VERSION, token: cfg.token, gateway: host.isGateway,
-        session: host.sessionId, rooms: host.isGateway ? myRooms(cfg) : [], ...sessionFields(),
+        type: 'hello',
+        v: PROTO,
+        plugin: PLUGIN_VERSION,
+        token: cfg.token,
+        gateway: host.isGateway,
+        session: host.sessionId,
+        rooms: host.isGateway ? myRooms(cfg) : [],
+        ...sessionFields(),
       }).then(
-        frame => {
+        (frame) => {
           if (frame.type === 'welcome') {
             wsReady = true
             reconnectDelay = 1000
@@ -514,7 +582,10 @@ async function connectWithConfig(): Promise<RelayFrame | null> {
             applyWelcome(frame)
             lastError = null
             exportState()
-            if (Number(frame.v) > PROTO) log(`서버 프로토콜(v${frame.v})이 플러그인(v${PROTO})보다 새 버전 — /plugin 의 Marketplaces 에서 업데이트 권장`)
+            if (Number(frame.v) > PROTO)
+              log(
+                `서버 프로토콜(v${frame.v})이 플러그인(v${PROTO})보다 새 버전 — /plugin 의 Marketplaces 에서 업데이트 권장`,
+              )
             maybeUpdateProtocolCache(frame)
             log(`'${cfg.name}' 으로 접속 완료 (${cfg.url})`)
           } else {
@@ -525,8 +596,15 @@ async function connectWithConfig(): Promise<RelayFrame | null> {
               lastError = String(frame.reason)
               exportState()
               deliberateClose.add(s)
-              if (ws === s) { ws = null; wsReady = false }
-              try { s.close() } catch { /* 서버가 이미 닫음 */ }
+              if (ws === s) {
+                ws = null
+                wsReady = false
+              }
+              try {
+                s.close()
+              } catch {
+                /* 서버가 이미 닫음 */
+              }
             }
           }
           finish(frame)
@@ -535,8 +613,15 @@ async function connectWithConfig(): Promise<RelayFrame | null> {
           // hello 무응답 타임아웃 — 유령 소켓을 남기지 않는다 (리뷰 C1). 소켓을 닫고
           // 현재 링크에서 해제한 뒤 정상 백오프로 재시도한다.
           deliberateClose.add(s)
-          if (ws === s) { ws = null; wsReady = false }
-          try { s.close() } catch { /* 이미 닫힘 */ }
+          if (ws === s) {
+            ws = null
+            wsReady = false
+          }
+          try {
+            s.close()
+          } catch {
+            /* 이미 닫힘 */
+          }
           finish(null)
           scheduleReconnect()
         },
@@ -631,11 +716,14 @@ function renderMemoryDoc(room: string, m: MemoryDocWire): string {
 
 /** 메모리 거부 사유 — 무엇을 고치면 되는지 */
 function renderMemoryError(reason: string): string {
-  if (reason.startsWith('memory_conflict')) return '그사이 다른 곳(관리자·다른 세션)에서 먼저 고쳤습니다 — view 로 최신 내용을 보고 다시 하세요'
+  if (reason.startsWith('memory_conflict'))
+    return '그사이 다른 곳(관리자·다른 세션)에서 먼저 고쳤습니다 — view 로 최신 내용을 보고 다시 하세요'
   if (reason.startsWith('memory_item_text_required')) return '항목 내용(text)이 필요합니다'
   if (reason.startsWith('memory_too_long')) return '칸마다 150자까지입니다 — 한 문장으로 줄이세요'
-  if (reason === 'memory_too_many_items') return '항목은 3개까지입니다 — 하나를 remove 한 뒤 추가하세요'
-  if (reason === 'memory_tool_name') return '도구 이름(team_…)은 메모리에 넣을 수 없습니다 — 도구 사용법은 규약이 다룹니다'
+  if (reason === 'memory_too_many_items')
+    return '항목은 3개까지입니다 — 하나를 remove 한 뒤 추가하세요'
+  if (reason === 'memory_tool_name')
+    return '도구 이름(team_…)은 메모리에 넣을 수 없습니다 — 도구 사용법은 규약이 다룹니다'
   if (reason === 'memory_full') return '3칸이 다 찼습니다 — replace 로 바꿀 항목 번호를 주세요'
   if (reason === 'proposal_not_found') return '이미 처리됐거나 만료된 제안입니다'
   if (reason === 'not_room_owner') return '그 방의 방장이 아닙니다'
@@ -645,14 +733,20 @@ function renderMemoryError(reason: string): string {
 
 /** 발신·답장 거부 사유 — 에이전트가 다음에 무엇을 할지 알 수 있게 풀어 쓴다 */
 function renderSendError(reason: string): string {
-  if (reason === 'unknown_thread') return '서버가 모르는 스레드입니다 (오래돼 정리됐거나 번호가 틀림) — 새 대화라면 team_send 로 보내세요'
-  if (reason === 'not_in_thread') return '이 스레드의 참여자가 아닙니다 — 내가 받은 메시지의 thread 만 쓸 수 있습니다'
-  if (reason === 'thread_mismatch') return 'thread 의 상대와 받는 사람이 다릅니다 — 답장은 team_reply(thread) 로, 다른 사람에게는 thread 없이 team_send 로 보내세요'
-  if (reason === 'peer_gone') return '상대가 이 방을 떠나 대화를 이어갈 수 없습니다 — 사용자에게 알리세요'
+  if (reason === 'unknown_thread')
+    return '서버가 모르는 스레드입니다 (오래돼 정리됐거나 번호가 틀림) — 새 대화라면 team_send 로 보내세요'
+  if (reason === 'not_in_thread')
+    return '이 스레드의 참여자가 아닙니다 — 내가 받은 메시지의 thread 만 쓸 수 있습니다'
+  if (reason === 'thread_mismatch')
+    return 'thread 의 상대와 받는 사람이 다릅니다 — 답장은 team_reply(thread) 로, 다른 사람에게는 thread 없이 team_send 로 보내세요'
+  if (reason === 'peer_gone')
+    return '상대가 이 방을 떠나 대화를 이어갈 수 없습니다 — 사용자에게 알리세요'
   if (reason === 'left_room') return '내가 이 스레드의 방에서 빠져 있어 답할 수 없습니다'
-  if (reason === 'notice_no_reply') return '공지에는 답장하지 않습니다 — 사용자에게 보여주기만 하세요'
+  if (reason === 'notice_no_reply')
+    return '공지에는 답장하지 않습니다 — 사용자에게 보여주기만 하세요'
   if (reason === 'thread_required') return 'thread 가 필요합니다 — 수신 태그의 thread 값을 넣으세요'
-  if (reason.startsWith('queue_full')) return `상대의 보관함이 가득 찼습니다 (${reason.split(':')[1] ?? ''}) — 사용자에게 알리세요`
+  if (reason.startsWith('queue_full'))
+    return `상대의 보관함이 가득 찼습니다 (${reason.split(':')[1] ?? ''}) — 사용자에게 알리세요`
   if (reason === 'rate_limited') return '발신이 너무 잦습니다 (분당 상한) — 잠시 뒤 다시 보내세요'
   return reason
 }
@@ -723,7 +817,11 @@ mcp.setRequestHandler(ListToolsRequestSchema, async () => ({
         type: 'object',
         properties: {
           thread: { type: 'string', description: '수신 메시지 태그의 thread 값' },
-          status: { type: 'string', enum: ['working', 'approval_pending'], description: '처리 상태' },
+          status: {
+            type: 'string',
+            enum: ['working', 'approval_pending'],
+            description: '처리 상태',
+          },
         },
         required: ['thread', 'status'],
       },
@@ -735,7 +833,11 @@ mcp.setRequestHandler(ListToolsRequestSchema, async () => ({
       inputSchema: {
         type: 'object',
         properties: {
-          mode: { type: 'string', enum: ['on', 'off'], description: 'on = 퇴근(수신 보관) · off = 출근(보관분 배달)' },
+          mode: {
+            type: 'string',
+            enum: ['on', 'off'],
+            description: 'on = 퇴근(수신 보관) · off = 출근(보관분 배달)',
+          },
         },
         required: ['mode'],
       },
@@ -748,8 +850,14 @@ mcp.setRequestHandler(ListToolsRequestSchema, async () => ({
         type: 'object',
         properties: {
           action: { type: 'string', enum: ['list', 'add', 'remove'], description: '수행할 동작' },
-          keywords: { type: 'string', description: '매칭 키워드 (add·remove — keywords 또는 room 중 하나)' },
-          room: { type: 'string', description: '방 바인딩 — 이 방 꼬리표의 질문을 지정 세션으로 (키워드보다 우선)' },
+          keywords: {
+            type: 'string',
+            description: '매칭 키워드 (add·remove — keywords 또는 room 중 하나)',
+          },
+          room: {
+            type: 'string',
+            description: '방 바인딩 — 이 방 꼬리표의 질문을 지정 세션으로 (키워드보다 우선)',
+          },
           session: { type: 'string', description: '위임받을 세션 이름 (add 에 필요)' },
         },
         required: ['action'],
@@ -774,7 +882,11 @@ mcp.setRequestHandler(ListToolsRequestSchema, async () => ({
       inputSchema: {
         type: 'object',
         properties: {
-          rooms: { type: 'string', description: '담당할 방 이름 (여러 개면 쉼표로 구분). 생략하면 현재 담당·참가 방을 보여준다' },
+          rooms: {
+            type: 'string',
+            description:
+              '담당할 방 이름 (여러 개면 쉼표로 구분). 생략하면 현재 담당·참가 방을 보여준다',
+          },
         },
       },
     },
@@ -785,7 +897,11 @@ mcp.setRequestHandler(ListToolsRequestSchema, async () => ({
       inputSchema: {
         type: 'object',
         properties: {
-          action: { type: 'string', enum: ['invite', 'kick', 'notice'], description: '수행할 동작' },
+          action: {
+            type: 'string',
+            enum: ['invite', 'kick', 'notice'],
+            description: '수행할 동작',
+          },
           room: { type: 'string', description: '대상 방 (내가 방장인 방)' },
           name: { type: 'string', description: 'invite: 새 팀원 이름 · kick: 제외할 팀원 이름' },
           text: { type: 'string', description: 'notice: 공지 내용' },
@@ -796,18 +912,32 @@ mcp.setRequestHandler(ListToolsRequestSchema, async () => ({
     {
       name: 'team_memory',
       description:
-        '방 메모리 — 방장·관리자가 방마다 정리한 짧은 사실(설명 1 + 내용 최대 3, 칸마다 150자)이다. 세션이 시작할 때 이미 시스템 프롬프트에 들어 있으니 따로 조회할 필요는 없다(view 는 지금 내용을 다시 볼 때). '
-        + '사용자에게 물어서 얻은 답이 **코드를 읽어서는 알 수 없고 앞으로도 매번 같을 것 같으면** propose 로 제안한다 — 방장(없으면 관리자)이 승인하면 그 방 모든 세션에 들어간다. '
-        + '방장이면 describe(설명)·add·edit·remove(항목)로 직접 고치고 approve·reject 로 제안을 처리한다.',
+        '방 메모리 — 방장·관리자가 방마다 정리한 짧은 사실(설명 1 + 내용 최대 3, 칸마다 150자)이다. 세션이 시작할 때 이미 시스템 프롬프트에 들어 있으니 따로 조회할 필요는 없다(view 는 지금 내용을 다시 볼 때). ' +
+        '사용자에게 물어서 얻은 답이 **코드를 읽어서는 알 수 없고 앞으로도 매번 같을 것 같으면** propose 로 제안한다 — 방장(없으면 관리자)이 승인하면 그 방 모든 세션에 들어간다. ' +
+        '방장이면 describe(설명)·add·edit·remove(항목)로 직접 고치고 approve·reject 로 제안을 처리한다.',
       inputSchema: {
         type: 'object',
         properties: {
-          action: { type: 'string', enum: ['view', 'propose', 'describe', 'add', 'edit', 'remove', 'approve', 'reject'], description: '수행할 동작' },
-          room: { type: 'string', description: '방 (생략하면 이 세션의 담당 방 — 담당이 여럿이면 필수)' },
-          text: { type: 'string', description: 'propose·add·edit: 내용 한 문장 (예: "금요일 배포 금지 — 주말 호출 방지") · describe: 방 설명 (빈 문자열이면 지움)' },
+          action: {
+            type: 'string',
+            enum: ['view', 'propose', 'describe', 'add', 'edit', 'remove', 'approve', 'reject'],
+            description: '수행할 동작',
+          },
+          room: {
+            type: 'string',
+            description: '방 (생략하면 이 세션의 담당 방 — 담당이 여럿이면 필수)',
+          },
+          text: {
+            type: 'string',
+            description:
+              'propose·add·edit: 내용 한 문장 (예: "금요일 배포 금지 — 주말 호출 방지") · describe: 방 설명 (빈 문자열이면 지움)',
+          },
           pos: { type: 'string', description: 'edit·remove: 항목 번호 (1~3)' },
           proposal_id: { type: 'string', description: 'approve·reject: 제안 id (mp-…)' },
-          replace: { type: 'string', description: 'approve: 3칸이 다 찼을 때 이 제안으로 바꿀 항목 번호' },
+          replace: {
+            type: 'string',
+            description: 'approve: 3칸이 다 찼을 때 이 제안으로 바꿀 항목 번호',
+          },
           reason: { type: 'string', description: 'reject: 거절 사유 (제안자에게 전달)' },
         },
         required: ['action'],
@@ -820,13 +950,23 @@ mcp.setRequestHandler(ListToolsRequestSchema, async () => ({
       inputSchema: {
         type: 'object',
         properties: {
-          action: { type: 'string', enum: ['propose', 'confirm', 'reject', 'list'], description: '수행할 동작' },
+          action: {
+            type: 'string',
+            enum: ['propose', 'confirm', 'reject', 'list'],
+            description: '수행할 동작',
+          },
           to: { type: 'string', description: 'propose: 합의 상대 팀원 이름' },
-          summary: { type: 'string', description: 'propose: 합의 내용 한 문장 (예: "source_ref 는 string[] · 빈 배열 허용")' },
+          summary: {
+            type: 'string',
+            description: 'propose: 합의 내용 한 문장 (예: "source_ref 는 string[] · 빈 배열 허용")',
+          },
           details: { type: 'string', description: 'propose: 상세 (선택 — 스키마·예시 등)' },
           thread: { type: 'string', description: 'propose: 이 합의가 나온 문답의 thread (선택)' },
           room: { type: 'string', description: 'propose: 방 지정 (선택)' },
-          agree_id: { type: 'string', description: 'confirm·reject: 받은 제안의 agree id (수신 meta 의 agree)' },
+          agree_id: {
+            type: 'string',
+            description: 'confirm·reject: 받은 제안의 agree id (수신 meta 의 agree)',
+          },
           reason: { type: 'string', description: 'reject: 거절 사유 — 대화와 어떻게 다른지' },
           peer: { type: 'string', description: 'list: 당사자 필터 (선택)' },
         },
@@ -872,7 +1012,7 @@ mcp.setRequestHandler(ListToolsRequestSchema, async () => ({
   ],
 }))
 
-mcp.setRequestHandler(CallToolRequestSchema, async req => {
+mcp.setRequestHandler(CallToolRequestSchema, async (req) => {
   const args = (req.params.arguments ?? {}) as Record<string, string>
   // 일반 세션 — 서버에 붙지 않는다. 진단·위임 등록표만 쓴다 (서버도 같은 규칙으로 막는다)
   if (!IS_TEAM && !LOCAL_TOOLS.has(req.params.name)) return ok(`✗ ${NOT_TEAM}`)
@@ -886,82 +1026,107 @@ mcp.setRequestHandler(CallToolRequestSchema, async req => {
       // join 의 ws 를 덮어쓰는 경합 방지 (리뷰 M1)
       joinInProgress = true
       try {
-      const joined = await new Promise<RelayFrame>((resolve, reject) => {
-        // 타임아웃 후 유령 소켓의 join 발신 금지 (초대코드 소모 방지)
-        let cancelled = false
-        const t = setTimeout(() => {
-          cancelled = true
-          joinSock.close() // 생성 직후 deliberateClose 등록됨 — 재접속 안 걸림
-          reject(new Error(`중계 서버(${url})에 연결할 수 없습니다`))
-        }, JOIN_TIMEOUT_MS)
-        const joinSock = openSocket(url, s => {
-          if (cancelled) {
-            s.close()
-            return
-          }
-          clearTimeout(t)
-          deliberateClose.delete(s) // 채택 — 이후 이 소켓의 close 는 정상 재접속 대상
-          ws = s
-          void request({ type: 'join', v: PROTO, plugin: PLUGIN_VERSION, code: args.code ?? '', token: existing?.token }).then(resolve, reject)
+        const joined = await new Promise<RelayFrame>((resolve, reject) => {
+          // 타임아웃 후 유령 소켓의 join 발신 금지 (초대코드 소모 방지)
+          let cancelled = false
+          const t = setTimeout(() => {
+            cancelled = true
+            joinSock.close() // 생성 직후 deliberateClose 등록됨 — 재접속 안 걸림
+            reject(new Error(`중계 서버(${url})에 연결할 수 없습니다`))
+          }, JOIN_TIMEOUT_MS)
+          const joinSock = openSocket(url, (s) => {
+            if (cancelled) {
+              s.close()
+              return
+            }
+            clearTimeout(t)
+            deliberateClose.delete(s) // 채택 — 이후 이 소켓의 close 는 정상 재접속 대상
+            ws = s
+            void request({
+              type: 'join',
+              v: PROTO,
+              plugin: PLUGIN_VERSION,
+              code: args.code ?? '',
+              token: existing?.token,
+            }).then(resolve, reject)
+          })
+          // 조기 실패가 옛 설정으로의 재접속을 걸지 않도록 선등록 (채택 시 해제)
+          deliberateClose.add(joinSock)
         })
-        // 조기 실패가 옛 설정으로의 재접속을 걸지 않도록 선등록 (채택 시 해제)
-        deliberateClose.add(joinSock)
-      })
-      if (joined.type !== 'joined') {
-        return ok(`✗ 참가 실패: ${String(joined.detail ?? joined.reason ?? joined.type)}`)
-      }
-      const token = (joined.token as string | undefined) ?? existing?.token
-      if (!token) return ok('✗ 서버가 토큰을 주지 않았고 기존 토큰도 없습니다 — 관리자에게 문의')
-      // 라우팅 등록표·자동답장 토글 등 로컬 설정은 재참가해도 보존한다.
-      // v2: 토큰은 머신당 하나(불변), rooms 는 서버가 준 방→라벨, 이 세션은 새 방을 담당한다.
-      const joinedRooms = (joined.rooms ?? {}) as Record<string, string>
-      const newRoom = Object.keys(joinedRooms).find(r => !(existing?.rooms ?? {})[r]) ?? Object.keys(joinedRooms)[0]
-      let cfgNext: Config = { ...(existing ?? {}), url, token, rooms: joinedRooms }
-      delete cfgNext.name
-      if (newRoom) cfgNext = bindRooms(cfgNext, [newRoom])
-      saveConfig(cfgNext, { roomsFromServer: true })
-      // 후속 hello 실패는 참가 실패가 아니다 (리뷰 m2) — 초대코드는 이미 소모·토큰은 저장됨.
-      // 원시 예외로 터뜨리면 사용자가 재발급을 요청하는 헛걸음을 하게 된다.
-      let welcome: RelayFrame | null = null
-      try {
-        welcome = await request({
-          type: 'hello', v: PROTO, plugin: PLUGIN_VERSION, token, gateway: host.isGateway,
-          session: host.sessionId, rooms: newRoom ? [newRoom] : [], ...sessionFields(),
-        })
-      } catch {
-        // hello 무응답 — 유령 소켓을 남기지 않고(리뷰 C1) 백그라운드 재시도로 넘긴다
-        if (ws) {
-          deliberateClose.add(ws)
-          try { ws.close() } catch { /* 이미 닫힘 */ }
-          ws = null
-          wsReady = false
+        if (joined.type !== 'joined') {
+          return ok(`✗ 참가 실패: ${String(joined.detail ?? joined.reason ?? joined.type)}`)
         }
-        scheduleReconnect()
-      }
-      if (welcome?.type !== 'welcome') {
+        const token = (joined.token as string | undefined) ?? existing?.token
+        if (!token) return ok('✗ 서버가 토큰을 주지 않았고 기존 토큰도 없습니다 — 관리자에게 문의')
+        // 라우팅 등록표·자동답장 토글 등 로컬 설정은 재참가해도 보존한다.
+        // v2: 토큰은 머신당 하나(불변), rooms 는 서버가 준 방→라벨, 이 세션은 새 방을 담당한다.
+        const joinedRooms = (joined.rooms ?? {}) as Record<string, string>
+        const newRoom =
+          Object.keys(joinedRooms).find((r) => !(existing?.rooms ?? {})[r]) ??
+          Object.keys(joinedRooms)[0]
+        let cfgNext: Config = { ...(existing ?? {}), url, token, rooms: joinedRooms }
+        delete cfgNext.name
+        if (newRoom) cfgNext = bindRooms(cfgNext, [newRoom])
+        saveConfig(cfgNext, { roomsFromServer: true })
+        // 후속 hello 실패는 참가 실패가 아니다 (리뷰 m2) — 초대코드는 이미 소모·토큰은 저장됨.
+        // 원시 예외로 터뜨리면 사용자가 재발급을 요청하는 헛걸음을 하게 된다.
+        let welcome: RelayFrame | null = null
+        try {
+          welcome = await request({
+            type: 'hello',
+            v: PROTO,
+            plugin: PLUGIN_VERSION,
+            token,
+            gateway: host.isGateway,
+            session: host.sessionId,
+            rooms: newRoom ? [newRoom] : [],
+            ...sessionFields(),
+          })
+        } catch {
+          // hello 무응답 — 유령 소켓을 남기지 않고(리뷰 C1) 백그라운드 재시도로 넘긴다
+          if (ws) {
+            deliberateClose.add(ws)
+            try {
+              ws.close()
+            } catch {
+              /* 이미 닫힘 */
+            }
+            ws = null
+            wsReady = false
+          }
+          scheduleReconnect()
+        }
+        if (welcome?.type !== 'welcome') {
+          return ok(
+            `✓ '${newRoom}' 방에 '${joined.name}' 으로 참가 완료. 토큰이 저장됐고 초대코드는 정상 소모됐으니 재발급은 필요 없습니다.\n` +
+              '다만 접속 확인 응답이 아직 없어 백그라운드에서 자동 재시도합니다 — 세션 재시작으로도 해결됩니다.',
+          )
+        }
+        wsReady = true
+        applyWelcome(welcome)
+        maybeUpdateProtocolCache(welcome)
         return ok(
-          `✓ '${newRoom}' 방에 '${joined.name}' 으로 참가 완료. 토큰이 저장됐고 초대코드는 정상 소모됐으니 재발급은 필요 없습니다.\n` +
-            '다만 접속 확인 응답이 아직 없어 백그라운드에서 자동 재시도합니다 — 세션 재시작으로도 해결됩니다.',
+          `✓ '${newRoom}' 방에 '${joined.name}' 으로 참가 완료\n` +
+            `  이 세션이 '${newRoom}' 담당입니다 (resume 하면 유지 · 새 세션은 team_room 으로 지정)\n` +
+            `  내 소속 방: ${Object.entries(joinedRooms)
+              .map(([r, l]) => `${r}(${l})`)
+              .join(', ')}\n${formatRoster(welcome)}`,
         )
-      }
-      wsReady = true
-      applyWelcome(welcome)
-      maybeUpdateProtocolCache(welcome)
-      return ok(
-        `✓ '${newRoom}' 방에 '${joined.name}' 으로 참가 완료\n` +
-          `  이 세션이 '${newRoom}' 담당입니다 (resume 하면 유지 · 새 세션은 team_room 으로 지정)\n` +
-          `  내 소속 방: ${Object.entries(joinedRooms).map(([r, l]) => `${r}(${l})`).join(', ')}\n${formatRoster(welcome)}`,
-      )
       } finally {
         joinInProgress = false
       }
     }
     case 'team_send': {
       if (!wsReady) await connectWithConfig()
-      if (!wsReady) return ok('✗ 중계 서버에 연결돼 있지 않습니다 — /team-relay:join 으로 먼저 참가하세요')
+      if (!wsReady)
+        return ok('✗ 중계 서버에 연결돼 있지 않습니다 — /team-relay:join 으로 먼저 참가하세요')
       // 새 대화 전용 — thread 는 싣지 않는다. 에이전트가 예전 습관대로 thread 를 넘겨도
       // 무시한다(답장은 team_reply). 실으면 서버는 구버전 답장으로 받아 상대를 thread 로 정한다.
-      const frame: Record<string, unknown> = { type: 'send', to: args.to ?? '', text: args.message ?? '' }
+      const frame: Record<string, unknown> = {
+        type: 'send',
+        to: args.to ?? '',
+        text: args.message ?? '',
+      }
       // room·expect 는 지정됐을 때만 와이어에 싣는다 (생략 시 서버 기본값에 위임)
       if (args.room) frame.room = args.room
       if (args.expect === 'reply' || args.expect === 'none') frame.expect = args.expect
@@ -974,22 +1139,31 @@ mcp.setRequestHandler(CallToolRequestSchema, async req => {
         return ok(renderSent(res, String(args.to)) + hint)
       }
       const reason = String(res.reason ?? '')
-      if (reason.startsWith('unknown_member')) return ok(`✗ '${args.to}' 라는 팀원이 없습니다 (team_status 로 확인)`)
+      if (reason.startsWith('unknown_member'))
+        return ok(`✗ '${args.to}' 라는 팀원이 없습니다 (team_status 로 확인)`)
       if (reason.startsWith('ambiguous_name')) {
         const rooms = reason.split(':')[2] ?? ''
-        return ok(`✗ '${args.to}' 이(가) 여러 방에 있습니다 (${rooms}) — 어느 방인지 사용자에게 확인한 뒤 room 을 지정해 다시 보내세요`)
+        return ok(
+          `✗ '${args.to}' 이(가) 여러 방에 있습니다 (${rooms}) — 어느 방인지 사용자에게 확인한 뒤 room 을 지정해 다시 보내세요`,
+        )
       }
       return ok(`✗ 발신 실패: ${renderSendError(reason)}`)
     }
     case 'team_reply': {
       if (!wsReady) await connectWithConfig()
-      if (!wsReady) return ok('✗ 중계 서버에 연결돼 있지 않습니다 — /team-relay:join 으로 먼저 참가하세요')
+      if (!wsReady)
+        return ok('✗ 중계 서버에 연결돼 있지 않습니다 — /team-relay:join 으로 먼저 참가하세요')
       // 서버가 reply 를 모르면(PROTO 3 미만) 보내 봐야 unknown_type 이다 — 이유를 먼저 말한다
       if (serverProto < 3) {
-        return ok('✗ 중계 서버가 구버전이라 team_reply 를 지원하지 않습니다 — 관리자에게 서버 업데이트를 요청하세요. 그동안은 team_send 에 수신 태그의 room·thread 를 넣어 답할 수 있습니다.')
+        return ok(
+          '✗ 중계 서버가 구버전이라 team_reply 를 지원하지 않습니다 — 관리자에게 서버 업데이트를 요청하세요. 그동안은 team_send 에 수신 태그의 room·thread 를 넣어 답할 수 있습니다.',
+        )
       }
       const thread = String(args.thread ?? '')
-      if (!thread) return ok('✗ thread 가 필요합니다 — 수신 메시지 태그의 thread 값을 그대로 넣으세요. 새 대화는 team_send 입니다.')
+      if (!thread)
+        return ok(
+          '✗ thread 가 필요합니다 — 수신 메시지 태그의 thread 값을 그대로 넣으세요. 새 대화는 team_send 입니다.',
+        )
       const frame: Record<string, unknown> = { type: 'reply', thread, text: args.message ?? '' }
       if (args.expect === 'reply' || args.expect === 'none') frame.expect = args.expect
       const res = await request(frame)
@@ -998,17 +1172,26 @@ mcp.setRequestHandler(CallToolRequestSchema, async req => {
     }
     case 'team_ack': {
       if (!wsReady) await connectWithConfig()
-      if (!wsReady) return ok('✗ 중계 서버에 연결돼 있지 않습니다 — /team-relay:join 으로 먼저 참가하세요')
-      const res = await request({ type: 'ack', thread: args.thread ?? '', status: args.status ?? 'working' })
-      if (res.type === 'ack_ok') return ok(`✓ 수신 확인 전송됨 (스레드 ${args.thread}) — 발신자의 무응답 알림이 해제됩니다`)
+      if (!wsReady)
+        return ok('✗ 중계 서버에 연결돼 있지 않습니다 — /team-relay:join 으로 먼저 참가하세요')
+      const res = await request({
+        type: 'ack',
+        thread: args.thread ?? '',
+        status: args.status ?? 'working',
+      })
+      if (res.type === 'ack_ok')
+        return ok(`✓ 수신 확인 전송됨 (스레드 ${args.thread}) — 발신자의 무응답 알림이 해제됩니다`)
       return ok(`✗ 수신 확인 실패: ${String(res.detail ?? res.reason ?? res.type)}`)
     }
     case 'team_away': {
-      if (args.mode !== 'on' && args.mode !== 'off') return ok('✗ mode 는 "on"(퇴근) 또는 "off"(출근)만 허용됩니다')
+      if (args.mode !== 'on' && args.mode !== 'off')
+        return ok('✗ mode 는 "on"(퇴근) 또는 "off"(출근)만 허용됩니다')
       if (!wsReady) await connectWithConfig()
-      if (!wsReady) return ok('✗ 중계 서버에 연결돼 있지 않습니다 — /team-relay:join 으로 먼저 참가하세요')
+      if (!wsReady)
+        return ok('✗ 중계 서버에 연결돼 있지 않습니다 — /team-relay:join 으로 먼저 참가하세요')
       const res = await request({ type: 'away', on: args.mode === 'on' })
-      if (res.type !== 'away_ok') return ok(`✗ 전환 실패: ${String(res.detail ?? res.reason ?? res.type)}`)
+      if (res.type !== 'away_ok')
+        return ok(`✗ 전환 실패: ${String(res.detail ?? res.reason ?? res.type)}`)
       lastAway = !!res.away
       exportState()
       return ok(
@@ -1024,7 +1207,10 @@ mcp.setRequestHandler(CallToolRequestSchema, async req => {
       switch (args.action) {
         case 'list': {
           const rendered = renderRoutes(routes)
-          if (!rendered) return ok('라우팅 등록표가 비어 있습니다 — team_route(action:"add") 로 등록할 수 있습니다')
+          if (!rendered)
+            return ok(
+              '라우팅 등록표가 비어 있습니다 — team_route(action:"add") 로 등록할 수 있습니다',
+            )
           return ok(rendered)
         }
         case 'add': {
@@ -1036,7 +1222,8 @@ mcp.setRequestHandler(CallToolRequestSchema, async req => {
           return ok(`✓ 등록${r.replaced ? ' (기존 항목 교체)' : ''}: ${labelOf(r.entry)}`)
         }
         case 'remove': {
-          if (!args.keywords && !args.room) return ok('✗ remove 에는 keywords 또는 room 이 필요합니다')
+          if (!args.keywords && !args.room)
+            return ok('✗ remove 에는 keywords 또는 room 이 필요합니다')
           const r = removeRoute(routes, args.keywords, args.room)
           if (!r.removed) return ok(`✗ 해당 등록 항목이 없습니다 (action:"list" 로 확인)`)
           saveConfig({ ...cfg, routes: r.routes })
@@ -1049,57 +1236,90 @@ mcp.setRequestHandler(CallToolRequestSchema, async req => {
     case 'team_server': {
       // 서버 이사 — 토큰·이름·라우팅표는 유지, 주소만 갱신
       const cfg = loadConfig()
-      if (!cfg) return ok('✗ 아직 팀에 참가하지 않았습니다 — 이사가 아니라 최초 참가는 /team-relay:join <서버주소> <초대코드>')
+      if (!cfg)
+        return ok(
+          '✗ 아직 팀에 참가하지 않았습니다 — 이사가 아니라 최초 참가는 /team-relay:join <서버주소> <초대코드>',
+        )
       if (!args.address) return ok('✗ 새 서버 주소가 필요합니다 — /team-relay:server <서버주소>')
       const url = normalizeUrl(args.address)
       saveConfig({ ...cfg, url })
       abandonCurrentLink() // 옛 서버로의 시도·연결 전부 무효화
       const welcome = await connectWithConfig()
       if (welcome?.type === 'welcome') {
-        return ok(`✓ 중계 서버를 ${url} 로 변경 — '${cfg.name}' 으로 접속 완료 (기존 토큰 유지)\n${formatRoster(welcome)}`)
+        return ok(
+          `✓ 중계 서버를 ${url} 로 변경 — '${cfg.name}' 으로 접속 완료 (기존 토큰 유지)\n${formatRoster(welcome)}`,
+        )
       }
-      return ok(`서버 주소를 ${url} 로 저장했습니다 — 지금은 연결되지 않아 백그라운드에서 자동 재시도합니다 (기존 토큰 유지)`)
+      return ok(
+        `서버 주소를 ${url} 로 저장했습니다 — 지금은 연결되지 않아 백그라운드에서 자동 재시도합니다 (기존 토큰 유지)`,
+      )
     }
     case 'team_memory': {
       if (!wsReady) await connectWithConfig()
-      if (!wsReady) return ok('✗ 중계 서버에 연결돼 있지 않습니다 — /team-relay:join 으로 먼저 참가하세요')
-      if (serverProto < 4) return ok('✗ 중계 서버가 구버전이라 방 메모리를 지원하지 않습니다 — 관리자에게 서버 업데이트를 요청하세요')
+      if (!wsReady)
+        return ok('✗ 중계 서버에 연결돼 있지 않습니다 — /team-relay:join 으로 먼저 참가하세요')
+      if (serverProto < 4)
+        return ok(
+          '✗ 중계 서버가 구버전이라 방 메모리를 지원하지 않습니다 — 관리자에게 서버 업데이트를 요청하세요',
+        )
       const action = String(args.action ?? '')
       // 제안 처리는 제안 id 가 방을 정한다
       if (action === 'approve' || action === 'reject') {
-        if (!args.proposal_id) return ok('✗ proposal_id 가 필요합니다 — 제안 알림에 적힌 mp-… 값입니다')
-        const frame: Record<string, unknown> = { type: 'memory_resolve', proposal: args.proposal_id, result: action }
+        if (!args.proposal_id)
+          return ok('✗ proposal_id 가 필요합니다 — 제안 알림에 적힌 mp-… 값입니다')
+        const frame: Record<string, unknown> = {
+          type: 'memory_resolve',
+          proposal: args.proposal_id,
+          result: action,
+        }
         if (args.replace) frame.replace = Number(args.replace)
         if (args.reason) frame.reason = args.reason
         const res = await request(frame)
-        if (res.type !== 'memory_resolved') return ok(`✗ ${renderMemoryError(String(res.reason ?? ''))}`)
-        return ok(action === 'approve'
-          ? `✓ 제안을 '${res.room}' 방 메모리에 넣었습니다 — 제안자에게 알렸습니다\n\n${renderMemoryDoc(String(res.room), res.memory as MemoryDocWire)}`
-          : `✓ 제안을 거절했습니다 — 제안자에게 사유와 함께 알렸습니다`)
+        if (res.type !== 'memory_resolved')
+          return ok(`✗ ${renderMemoryError(String(res.reason ?? ''))}`)
+        return ok(
+          action === 'approve'
+            ? `✓ 제안을 '${res.room}' 방 메모리에 넣었습니다 — 제안자에게 알렸습니다\n\n${renderMemoryDoc(String(res.room), res.memory as MemoryDocWire)}`
+            : `✓ 제안을 거절했습니다 — 제안자에게 사유와 함께 알렸습니다`,
+        )
       }
       const room = args.room ?? (heldRooms.length === 1 ? heldRooms[0] : '')
-      if (!room) return ok(`✗ 어느 방인지 room 을 지정하세요 — 이 세션 담당: ${heldRooms.join(', ') || '(없음)'}`)
+      if (!room)
+        return ok(
+          `✗ 어느 방인지 room 을 지정하세요 — 이 세션 담당: ${heldRooms.join(', ') || '(없음)'}`,
+        )
       if (action === 'propose') {
         const res = await request({ type: 'memory_propose', room, text: args.text ?? '' })
-        if (res.type !== 'memory_proposed') return ok(`✗ ${renderMemoryError(String(res.reason ?? ''))}`)
-        const where = res.to === 'owner' ? '방장에게 전달했습니다'
-          : res.to === 'queued' ? '방장이 오프라인 — 접속하면 전달됩니다'
-          : res.to === 'self' ? '방장이시니 add 로 바로 넣을 수도 있습니다'
-          : '방장이 없어 관리자가 콘솔에서 처리합니다'
-        return ok(`✓ '${room}' 방 메모리에 제안했습니다 (${String(res.proposal)}) — ${where}. 72시간 안에 처리되지 않으면 폐기됩니다.`)
+        if (res.type !== 'memory_proposed')
+          return ok(`✗ ${renderMemoryError(String(res.reason ?? ''))}`)
+        const where =
+          res.to === 'owner'
+            ? '방장에게 전달했습니다'
+            : res.to === 'queued'
+              ? '방장이 오프라인 — 접속하면 전달됩니다'
+              : res.to === 'self'
+                ? '방장이시니 add 로 바로 넣을 수도 있습니다'
+                : '방장이 없어 관리자가 콘솔에서 처리합니다'
+        return ok(
+          `✓ '${room}' 방 메모리에 제안했습니다 (${String(res.proposal)}) — ${where}. 72시간 안에 처리되지 않으면 폐기됩니다.`,
+        )
       }
       const got = await request({ type: 'memory_get', room })
       if (got.type !== 'memory') return ok(`✗ ${renderMemoryError(String(got.reason ?? ''))}`)
       const cur = got.memory as MemoryDocWire
       if (action === 'view') {
-        const props = (got.proposals as Array<{ id: string; fromLabel: string; text: string }> | undefined) ?? []
+        const props =
+          (got.proposals as Array<{ id: string; fromLabel: string; text: string }> | undefined) ??
+          []
         const tail = props.length
-          ? '\n\n대기 중인 제안:\n' + props.map(p => `  ${p.id} · ${p.fromLabel}: ${p.text}`).join('\n')
+          ? '\n\n대기 중인 제안:\n' +
+            props.map((p) => `  ${p.id} · ${p.fromLabel}: ${p.text}`).join('\n')
           : ''
         return ok(renderMemoryDoc(room, cur) + tail)
       }
       // 여기부터 방장 쓰기 — 지금 버전(rev)을 들고 가서, 그사이 누가 고쳤으면 서버가 거부한다
-      if (!got.owner) return ok(`✗ '${room}' 방의 방장이 아닙니다 — 고칠 내용은 propose 로 제안하세요`)
+      if (!got.owner)
+        return ok(`✗ '${room}' 방의 방장이 아닙니다 — 고칠 내용은 propose 로 제안하세요`)
       const items = cur.items.slice()
       let description = cur.description
       const pos = Number(args.pos)
@@ -1115,41 +1335,61 @@ mcp.setRequestHandler(CallToolRequestSchema, async req => {
       } else return ok(`✗ 알 수 없는 action: ${action}`)
       const res = await request({ type: 'memory_set', room, rev: cur.rev, description, items })
       if (res.type !== 'memory_ok') return ok(`✗ ${renderMemoryError(String(res.reason ?? ''))}`)
-      return ok(`✓ '${room}' 방 메모리를 고쳤습니다 — 그 방 세션들에 바로 알려집니다\n\n${renderMemoryDoc(room, res.memory as MemoryDocWire)}`)
+      return ok(
+        `✓ '${room}' 방 메모리를 고쳤습니다 — 그 방 세션들에 바로 알려집니다\n\n${renderMemoryDoc(room, res.memory as MemoryDocWire)}`,
+      )
     }
     case 'team_owner': {
       if (!wsReady) await connectWithConfig()
-      if (!wsReady) return ok('✗ 중계 서버에 연결돼 있지 않습니다 — /team-relay:join 으로 먼저 참가하세요')
+      if (!wsReady)
+        return ok('✗ 중계 서버에 연결돼 있지 않습니다 — /team-relay:join 으로 먼저 참가하세요')
       const room = args.room ?? ''
       const notOwner = (res: RelayFrame): string | null =>
-        res.reason === 'not_room_owner' ? `✗ '${room}' 방의 방장이 아닙니다 — 방장 지정은 서버 관리자(relay room owner)가 합니다` : null
+        res.reason === 'not_room_owner'
+          ? `✗ '${room}' 방의 방장이 아닙니다 — 방장 지정은 서버 관리자(relay room owner)가 합니다`
+          : null
       switch (args.action) {
         case 'invite': {
           if (!args.name) return ok('✗ invite 에는 name(새 팀원 이름)이 필요합니다')
           const res = await request({ type: 'room_invite', room, name: args.name })
-          if (res.type !== 'room_invite_ok') return ok(notOwner(res) ?? `✗ 초대 실패: ${String(res.detail ?? res.reason ?? res.type)}`)
-          return ok(`✓ 초대코드 (1회용 · '${room}' 방 · '${args.name}'):\n\n  ${res.code}\n\n팀원에게 전달하세요 → /team-relay:join <서버주소> ${res.code}`)
+          if (res.type !== 'room_invite_ok')
+            return ok(
+              notOwner(res) ?? `✗ 초대 실패: ${String(res.detail ?? res.reason ?? res.type)}`,
+            )
+          return ok(
+            `✓ 초대코드 (1회용 · '${room}' 방 · '${args.name}'):\n\n  ${res.code}\n\n팀원에게 전달하세요 → /team-relay:join <서버주소> ${res.code}`,
+          )
         }
         case 'kick': {
           if (!args.name) return ok('✗ kick 에는 name(제외할 팀원 이름)이 필요합니다')
           const res = await request({ type: 'room_kick', room, name: args.name })
           if (res.type !== 'room_kick_ok') {
-            if (res.reason === 'not_in_room') return ok(`✗ '${args.name}'은(는) '${room}' 방 소속이 아닙니다`)
-            return ok(notOwner(res) ?? `✗ 제외 실패: ${String(res.detail ?? res.reason ?? res.type)}`)
+            if (res.reason === 'not_in_room')
+              return ok(`✗ '${args.name}'은(는) '${room}' 방 소속이 아닙니다`)
+            return ok(
+              notOwner(res) ?? `✗ 제외 실패: ${String(res.detail ?? res.reason ?? res.type)}`,
+            )
           }
-          return ok(`✓ '${args.name}'을(를) '${room}' 방에서 제외했습니다 (다른 방 소속·토큰은 유지 — 전역 차단은 관리자 revoke). 그 방 보관분은 폐기되고 발신자들에게 통지됩니다.`)
+          return ok(
+            `✓ '${args.name}'을(를) '${room}' 방에서 제외했습니다 (다른 방 소속·토큰은 유지 — 전역 차단은 관리자 revoke). 그 방 보관분은 폐기되고 발신자들에게 통지됩니다.`,
+          )
         }
         case 'notice': {
           if (!args.text) return ok('✗ notice 에는 text(공지 내용)가 필요합니다')
           const res = await request({ type: 'room_notice', room, text: args.text })
           if (res.type !== 'room_notice_ok') {
-            if (res.reason === 'notice_rate_limited') return ok('✗ 공지 발송 한도 초과(분당 상한) — 잠시 후 다시 시도하세요')
-            return ok(notOwner(res) ?? `✗ 공지 실패: ${String(res.detail ?? res.reason ?? res.type)}`)
+            if (res.reason === 'notice_rate_limited')
+              return ok('✗ 공지 발송 한도 초과(분당 상한) — 잠시 후 다시 시도하세요')
+            return ok(
+              notOwner(res) ?? `✗ 공지 실패: ${String(res.detail ?? res.reason ?? res.type)}`,
+            )
           }
           const skipped = (res.skipped as string[] | undefined) ?? []
           return ok(
             `✓ '${room}' 공지 발송 — 즉시 배달 ${res.delivered}명 · 보관 ${res.queued}명` +
-              (skipped.length ? `\n⚠️ 보관함 만석으로 못 받은 팀원: ${skipped.join(', ')} — 직접 전달이 필요합니다` : ''),
+              (skipped.length
+                ? `\n⚠️ 보관함 만석으로 못 받은 팀원: ${skipped.join(', ')} — 직접 전달이 필요합니다`
+                : ''),
           )
         }
         default:
@@ -1158,18 +1398,19 @@ mcp.setRequestHandler(CallToolRequestSchema, async req => {
     }
     case 'team_room': {
       const cfg = loadConfig()
-      if (!cfg) return ok('✗ 아직 팀에 참가하지 않았습니다 — /team-relay:join <서버주소> <초대코드>')
+      if (!cfg)
+        return ok('✗ 아직 팀에 참가하지 않았습니다 — /team-relay:join <서버주소> <초대코드>')
       const joinedRooms = cfg.rooms ?? {}
       /** 대화상자로 고른 값 — 인자로 온 rooms 보다 우선한다 */
       let chosen: string | null = null
       // 인자 없음 — 서버에 물어 3상태를 보여주고, 가능하면 **대화상자로 고르게 한다** (v0.7 §3.4)
       if (!args.rooms) {
         const list = await roomStatuses(cfg)
-        const header = `이 세션 담당: ${heldRooms.length ? heldRooms.map(r => `${r}(${joinedRooms[r]})`).join(', ') : '(없음)'}`
+        const header = `이 세션 담당: ${heldRooms.length ? heldRooms.map((r) => `${r}(${joinedRooms[r]})`).join(', ') : '(없음)'}`
         if (list.length === 0) return ok(`${header}\n참가 중인 방: (없음)`)
         const body = `${header}\n\n참가 중인 방 ${list.length}개\n${renderRooms(list)}`
         // 고를 것이 없으면(전부 이 세션 담당) 현황만 보여준다
-        const selectable = list.filter(r => r.mark !== 'mine')
+        const selectable = list.filter((r) => r.mark !== 'mine')
         if (selectable.length === 0) return ok(body)
 
         // "받지 않음" 항목은 없다 — 받지 않는 세션은 팀 기능을 못 쓰므로(0.10.0) 고를 이유가 없다.
@@ -1177,7 +1418,7 @@ mcp.setRequestHandler(CallToolRequestSchema, async req => {
         const picked = await host.choose({
           message: '이 세션이 받을 방을 고르세요',
           title: '담당할 방',
-          options: list.map(r => ({ value: r.room, label: choiceLabel(r) })),
+          options: list.map((r) => ({ value: r.room, label: choiceLabel(r) })),
         })
         if (picked === null) {
           // 선택 UI 미지원이거나 사용자가 취소 — 목록은 그대로 보여주고 수동 경로를 안내한다
@@ -1185,40 +1426,58 @@ mcp.setRequestHandler(CallToolRequestSchema, async req => {
         }
         chosen = picked
       }
-      const wanted = (chosen ?? args.rooms!).split(',').map(r => r.trim()).filter(Boolean)
-      const notJoined = wanted.filter(r => !(r in joinedRooms))
+      const wanted = (chosen ?? args.rooms!)
+        .split(',')
+        .map((r) => r.trim())
+        .filter(Boolean)
+      const notJoined = wanted.filter((r) => !(r in joinedRooms))
       if (notJoined.length) {
-        return ok(`✗ 참가하지 않은 방입니다: ${notJoined.join(', ')} — 관리자에게 초대코드를 받아 /team-relay:join 하세요`)
+        return ok(
+          `✗ 참가하지 않은 방입니다: ${notJoined.join(', ')} — 관리자에게 초대코드를 받아 /team-relay:join 하세요`,
+        )
       }
       if (!wsReady) await connectWithConfig()
       if (!wsReady) return ok('✗ 중계 서버에 연결돼 있지 않습니다 — 잠시 후 다시 시도하세요')
       const res = await request({ type: 'room', rooms: wanted })
-      if (res.type !== 'room_ok') return ok(`✗ 담당 지정 실패: ${String(res.detail ?? res.reason ?? res.type)}`)
+      if (res.type !== 'room_ok')
+        return ok(`✗ 담당 지정 실패: ${String(res.detail ?? res.reason ?? res.type)}`)
       heldRooms = ((res.held as string[] | undefined) ?? []).slice()
       exportState()
       const lost = (res.lost as string[] | undefined) ?? []
       const stolen = (res.stolen as string[] | undefined) ?? []
-      try { saveConfig(bindRooms(loadConfig() ?? cfg, heldRooms)) } catch { /* 저장 실패는 동작을 막지 않는다 */ }
+      try {
+        saveConfig(bindRooms(loadConfig() ?? cfg, heldRooms))
+      } catch {
+        /* 저장 실패는 동작을 막지 않는다 */
+      }
       return ok(
-        `✓ 이 세션 담당: ${heldRooms.map(r => `${r}(${joinedRooms[r]})`).join(', ') || '(없음)'}` +
+        `✓ 이 세션 담당: ${heldRooms.map((r) => `${r}(${joinedRooms[r]})`).join(', ') || '(없음)'}` +
           // 뺏어온 방은 반드시 밝힌다 — 상대 세션은 조용히 수신을 잃는다
-          (stolen.length ? `\n↪ 다음 방의 수신을 다른 세션에서 가져왔습니다: ${stolen.join(', ')}` : '') +
+          (stolen.length
+            ? `\n↪ 다음 방의 수신을 다른 세션에서 가져왔습니다: ${stolen.join(', ')}`
+            : '') +
           (lost.length ? `\n⚠️ 담당 실패: ${lost.join(', ')}` : '') +
           '\n이 담당은 --resume 으로 재시작하면 유지됩니다.',
       )
     }
     case 'team_agree': {
       if (!wsReady) await connectWithConfig()
-      if (!wsReady) return ok('✗ 중계 서버에 연결돼 있지 않습니다 — /team-relay:join 으로 먼저 참가하세요')
+      if (!wsReady)
+        return ok('✗ 중계 서버에 연결돼 있지 않습니다 — /team-relay:join 으로 먼저 참가하세요')
       switch (args.action) {
         case 'propose': {
           if (!args.to || !args.summary) return ok('✗ propose 에는 to 와 summary 가 필요합니다')
-          const frame: Record<string, unknown> = { type: 'agree_propose', to: args.to, summary: args.summary }
+          const frame: Record<string, unknown> = {
+            type: 'agree_propose',
+            to: args.to,
+            summary: args.summary,
+          }
           if (args.details) frame.details = args.details
           if (args.thread) frame.thread = args.thread
           if (args.room) frame.room = args.room
           const res = await request(frame)
-          if (res.type !== 'agree_ok') return ok(`✗ 합의 제안 실패: ${String(res.detail ?? res.reason ?? res.type)}`)
+          if (res.type !== 'agree_ok')
+            return ok(`✗ 합의 제안 실패: ${String(res.detail ?? res.reason ?? res.type)}`)
           return ok(
             res.state === 'delivered'
               ? `✓ 합의 제안 전달됨 (${res.agree}) — 상대 에이전트가 확인(confirm)하면 대장에 기록됩니다`
@@ -1228,29 +1487,54 @@ mcp.setRequestHandler(CallToolRequestSchema, async req => {
         case 'confirm':
         case 'reject': {
           if (!args.agree_id) return ok('✗ agree_id 가 필요합니다 (수신 메시지 meta 의 agree 값)')
-          const frame: Record<string, unknown> = { type: 'agree_resolve', agree: args.agree_id, result: args.action }
+          const frame: Record<string, unknown> = {
+            type: 'agree_resolve',
+            agree: args.agree_id,
+            result: args.action,
+          }
           if (args.reason) frame.reason = args.reason
           const res = await request(frame)
           if (res.type !== 'agree_resolved') {
-            if (res.reason === 'agree_not_found') return ok('✗ 해당 제안이 없습니다 — 이미 처리됐거나 만료됐습니다')
+            if (res.reason === 'agree_not_found')
+              return ok('✗ 해당 제안이 없습니다 — 이미 처리됐거나 만료됐습니다')
             if (res.reason === 'agree_not_mine') return ok('✗ 이 제안의 확인 당사자가 아닙니다')
             return ok(`✗ 처리 실패: ${String(res.detail ?? res.reason ?? res.type)}`)
           }
-          return ok(res.result === 'confirm' ? `✓ 합의 확정 (${res.agree}) — 대장에 기록되고 제안자에게 통지됩니다` : `✓ 합의 거절 처리 (${res.agree}) — 제안자에게 사유가 통지됩니다`)
+          return ok(
+            res.result === 'confirm'
+              ? `✓ 합의 확정 (${res.agree}) — 대장에 기록되고 제안자에게 통지됩니다`
+              : `✓ 합의 거절 처리 (${res.agree}) — 제안자에게 사유가 통지됩니다`,
+          )
         }
         case 'list': {
           const frame: Record<string, unknown> = { type: 'agree_list' }
           if (args.peer) frame.peer = args.peer
           const res = await request(frame)
-          if (res.type !== 'agrees') return ok(`✗ 조회 실패: ${String(res.detail ?? res.reason ?? res.type)}`)
-          const entries = (res.entries ?? []) as Array<{ agree: string; ts: number; room: string; a: string; b: string; summary: string; details?: string }>
-          const pending = (res.pending ?? []) as Array<{ agree: string; a: string; b: string; summary: string }>
+          if (res.type !== 'agrees')
+            return ok(`✗ 조회 실패: ${String(res.detail ?? res.reason ?? res.type)}`)
+          const entries = (res.entries ?? []) as Array<{
+            agree: string
+            ts: number
+            room: string
+            a: string
+            b: string
+            summary: string
+            details?: string
+          }>
+          const pending = (res.pending ?? []) as Array<{
+            agree: string
+            a: string
+            b: string
+            summary: string
+          }>
           const lines: string[] = []
           if (entries.length) {
             lines.push(`확정 합의 (${entries.length}건):`)
             for (const e of entries) {
               const t = new Date(e.ts).toISOString().slice(0, 10)
-              lines.push(`  [${t}] [${e.room}] ${e.a} ↔ ${e.b}: ${e.summary}${e.details ? ` — ${e.details}` : ''} (${e.agree})`)
+              lines.push(
+                `  [${t}] [${e.room}] ${e.a} ↔ ${e.b}: ${e.summary}${e.details ? ` — ${e.details}` : ''} (${e.agree})`,
+              )
             }
           } else {
             lines.push('확정 합의가 없습니다')
@@ -1267,7 +1551,8 @@ mcp.setRequestHandler(CallToolRequestSchema, async req => {
     }
     case 'team_history': {
       if (!wsReady) await connectWithConfig()
-      if (!wsReady) return ok('✗ 중계 서버에 연결돼 있지 않습니다 — /team-relay:join 으로 먼저 참가하세요')
+      if (!wsReady)
+        return ok('✗ 중계 서버에 연결돼 있지 않습니다 — /team-relay:join 으로 먼저 참가하세요')
       const frame: Record<string, unknown> = { type: 'history' }
       if (args.peer) frame.peer = args.peer
       if (args.room) frame.room = args.room
@@ -1276,18 +1561,31 @@ mcp.setRequestHandler(CallToolRequestSchema, async req => {
       if (args.before && Number(args.before) > 0) frame.before = Number(args.before)
       const res = await request(frame)
       if (res.type !== 'history') {
-        if (res.reason === 'history_disabled') return ok('✗ 이 서버는 감사 로그가 꺼져 있어 히스토리를 제공하지 않습니다')
+        if (res.reason === 'history_disabled')
+          return ok('✗ 이 서버는 감사 로그가 꺼져 있어 히스토리를 제공하지 않습니다')
         return ok(`✗ 히스토리 조회 실패: ${String(res.detail ?? res.reason ?? res.type)}`)
       }
-      const entries = (res.entries ?? []) as Array<{ ts: number; room: string; from: string; to: string; text: string; thread?: string; truncated?: boolean }>
+      const entries = (res.entries ?? []) as Array<{
+        ts: number
+        room: string
+        from: string
+        to: string
+        text: string
+        thread?: string
+        truncated?: boolean
+      }>
       if (entries.length === 0) return ok('조회 조건에 맞는 기록이 없습니다')
-      const lines = entries.map(e => {
+      const lines = entries.map((e) => {
         const t = new Date(e.ts).toISOString().replace('T', ' ').slice(5, 16)
-        const tail = [e.thread ? `t:${e.thread}` : null, e.truncated ? '(잘림)' : null].filter(Boolean).join(' ')
+        const tail = [e.thread ? `t:${e.thread}` : null, e.truncated ? '(잘림)' : null]
+          .filter(Boolean)
+          .join(' ')
         return `  [${t}] [${e.room}] ${e.from} → ${e.to}: ${e.text}${tail ? ` ${tail}` : ''}`
       })
       if (res.more) {
-        lines.push(`  … 이전 기록이 더 있습니다 — before:${entries[0]!.ts} 로 이전 페이지를 조회할 수 있습니다`)
+        lines.push(
+          `  … 이전 기록이 더 있습니다 — before:${entries[0]!.ts} 로 이전 페이지를 조회할 수 있습니다`,
+        )
       }
       return ok([`팀 메시지 히스토리 (${entries.length}건):`, ...lines].join('\n'))
     }
@@ -1301,14 +1599,28 @@ mcp.setRequestHandler(CallToolRequestSchema, async req => {
       // ── 로컬 점검 ──
       const cfg = loadConfig()
       if (!cfg) {
-        check(false, '설정', `없음 또는 파싱 불가 (${CONFIG_PATH})`, '/team-relay:join <서버주소> <초대코드> 로 참가하세요')
+        check(
+          false,
+          '설정',
+          `없음 또는 파싱 불가 (${CONFIG_PATH})`,
+          '/team-relay:join <서버주소> <초대코드> 로 참가하세요',
+        )
       } else {
-        const labels = Object.entries(cfg.rooms ?? {}).map(([r, l]) => `${r}(${l})`).join(', ')
+        const labels = Object.entries(cfg.rooms ?? {})
+          .map(([r, l]) => `${r}(${l})`)
+          .join(', ')
         check(true, '설정', `${labels || '(참가한 방 없음)'} @ ${cfg.url}`)
         try {
           const mode = statSync(CONFIG_PATH).mode & 0o777
-          check(mode === 0o600, '설정 권한', `0${mode.toString(8)}`, `chmod 600 ${CONFIG_PATH} 를 실행하세요 (토큰 보호)`)
-        } catch { /* 존재는 위에서 확인됨 */ }
+          check(
+            mode === 0o600,
+            '설정 권한',
+            `0${mode.toString(8)}`,
+            `chmod 600 ${CONFIG_PATH} 를 실행하세요 (토큰 보호)`,
+          )
+        } catch {
+          /* 존재는 위에서 확인됨 */
+        }
       }
       check(
         host.isGateway,
@@ -1322,9 +1634,13 @@ mcp.setRequestHandler(CallToolRequestSchema, async req => {
       const pkgVersion = ((): string | null => {
         for (const dir of [PKG_DIR, dirname(PKG_DIR.replace(/\/$/, ''))]) {
           try {
-            const v = (JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8')) as { version?: string }).version
+            const v = (
+              JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8')) as { version?: string }
+            ).version
             if (v) return v
-          } catch { /* 다음 자리 */ }
+          } catch {
+            /* 다음 자리 */
+          }
         }
         return null
       })()
@@ -1333,14 +1649,20 @@ mcp.setRequestHandler(CallToolRequestSchema, async req => {
            전에는 어느 쪽이든 "빌드 누락" 이라고만 해서, 번호를 안 올린 경우에
            엉뚱한 처방이 나갔다(실사례: 번들 0.7.6 / 패키지 0.7.3). */
         const stale = ((): boolean => {
-          const a = PLUGIN_VERSION.split('.').map(Number), b = pkgVersion.split('.').map(Number)
-          for (let i = 0; i < 3; i++) if ((a[i] ?? 0) !== (b[i] ?? 0)) return (a[i] ?? 0) < (b[i] ?? 0)
+          const a = PLUGIN_VERSION.split('.').map(Number),
+            b = pkgVersion.split('.').map(Number)
+          for (let i = 0; i < 3; i++)
+            if ((a[i] ?? 0) !== (b[i] ?? 0)) return (a[i] ?? 0) < (b[i] ?? 0)
           return false
         })()
-        check(false, '번들 신선도', `번들 v${PLUGIN_VERSION} ≠ 패키지 v${pkgVersion}`,
+        check(
+          false,
+          '번들 신선도',
+          `번들 v${PLUGIN_VERSION} ≠ 패키지 v${pkgVersion}`,
           stale
             ? '배포본이 소스보다 낡았습니다 — 관리자에게 알리세요 (bun run build 누락)'
-            : '배포본은 최신인데 package.json 의 번호만 안 올라갔습니다 — 동작에는 지장이 없습니다. 관리자에게 알리세요')
+            : '배포본은 최신인데 package.json 의 번호만 안 올라갔습니다 — 동작에는 지장이 없습니다. 관리자에게 알리세요',
+        )
       }
       // 업데이트(Update marketplace)는 그 일을 한 세션에만 바로 적용된다. **이미 떠 있던 다른 세션은
       // 옛 코드를 계속 물고 돈다** — 설치본 폴더에 더 새 버전이 있으면 이 세션에서 /reload-plugins 가 필요하다.
@@ -1348,27 +1670,44 @@ mcp.setRequestHandler(CallToolRequestSchema, async req => {
         try {
           const versionsDir = dirname(dirname(PLUGIN_DIR)) // …/team-relay/<버전>/plugin → …/team-relay
           const cmp = (a: string, b: string): number => {
-            const pa = a.split('.').map(Number), pb = b.split('.').map(Number)
-            for (let i = 0; i < 3; i++) if ((pa[i] ?? 0) !== (pb[i] ?? 0)) return (pa[i] ?? 0) - (pb[i] ?? 0)
+            const pa = a.split('.').map(Number),
+              pb = b.split('.').map(Number)
+            for (let i = 0; i < 3; i++)
+              if ((pa[i] ?? 0) !== (pb[i] ?? 0)) return (pa[i] ?? 0) - (pb[i] ?? 0)
             return 0
           }
           const found = readdirSync(versionsDir)
-            .filter(d => /^\d+\.\d+\.\d+$/.test(d) && cmp(d, PLUGIN_VERSION) > 0)
+            .filter((d) => /^\d+\.\d+\.\d+$/.test(d) && cmp(d, PLUGIN_VERSION) > 0)
             .sort(cmp)
           return found.length ? found[found.length - 1]! : null
-        } catch { return null }
+        } catch {
+          return null
+        }
       })()
       if (newerInstalled) {
-        check(false, '실행 중 버전', `v${PLUGIN_VERSION} (설치본은 v${newerInstalled})`,
-          '이 세션은 업데이트 전 버전으로 돌고 있습니다 — /reload-plugins 를 실행하세요 (재시작은 필요 없습니다)')
+        check(
+          false,
+          '실행 중 버전',
+          `v${PLUGIN_VERSION} (설치본은 v${newerInstalled})`,
+          '이 세션은 업데이트 전 버전으로 돌고 있습니다 — /reload-plugins 를 실행하세요 (재시작은 필요 없습니다)',
+        )
       }
       // 상태줄은 플러그인이 죽어도 보이는 유일한 창구다 — 미설정을 조용히 두지 않는다 (v0.7 §3.3)
       const settingsRaw = ((): string | null => {
-        try { return readFileSync(join(homedir(), '.claude', 'settings.json'), 'utf8') } catch { return null }
+        try {
+          return readFileSync(join(homedir(), '.claude', 'settings.json'), 'utf8')
+        } catch {
+          return null
+        }
       })()
-      const slRegistered = !!settingsRaw && /"statusLine"/.test(settingsRaw) && /team-relay/.test(settingsRaw)
-      check(slRegistered, '상태줄(statusline)', slRegistered ? '등록됨' : '미설정',
-        `~/.claude/settings.json 에 아래를 넣고 Claude Code 를 재시작하세요 — 팀 연결이 끊겨도 상태줄이 알려줍니다:\n     "statusLine": { "type": "command", "command": "${STATUSLINE_CONFIG_PATH}" }`)
+      const slRegistered =
+        !!settingsRaw && /"statusLine"/.test(settingsRaw) && /team-relay/.test(settingsRaw)
+      check(
+        slRegistered,
+        '상태줄(statusline)',
+        slRegistered ? '등록됨' : '미설정',
+        `~/.claude/settings.json 에 아래를 넣고 Claude Code 를 재시작하세요 — 팀 연결이 끊겨도 상태줄이 알려줍니다:\n     "statusLine": { "type": "command", "command": "${STATUSLINE_CONFIG_PATH}" }`,
+      )
       /**
        * 상태줄이 읽는 **그 파일**을 적는다.
        *
@@ -1381,48 +1720,88 @@ mcp.setRequestHandler(CallToolRequestSchema, async req => {
       check(true, '상태 파일', `${stateFile} (30초마다 갱신)`)
       // 설치본 경로에는 버전이 들어간다 — 그 경로를 박아두면 업데이트할 때마다 깨진다
       if (slRegistered && /plugins\/cache\//.test(settingsRaw!)) {
-        check(false, '상태줄 경로', '버전이 박힌 설치본 경로',
-          `플러그인을 업데이트하면 그 경로가 사라집니다. 아래 **고정 경로**로 바꾸세요:\n     "command": "${STATUSLINE_CONFIG_PATH}"`)
+        check(
+          false,
+          '상태줄 경로',
+          '버전이 박힌 설치본 경로',
+          `플러그인을 업데이트하면 그 경로가 사라집니다. 아래 **고정 경로**로 바꾸세요:\n     "command": "${STATUSLINE_CONFIG_PATH}"`,
+        )
       }
       // 여기부터는 팀 세션의 일이다 — 일반 세션은 서버에 붙지 않으므로 이 컴퓨터 안의 점검으로 끝낸다
       if (!host.isGateway) return ok(lines.join('\n'))
       check(
         !!protocolCache,
         '규약',
-        protocolCache ? `rev ${protocolCache.rev} (캐시)` : '캐시 없음 — 내장 최소 폴백으로 동작 중',
+        protocolCache
+          ? `rev ${protocolCache.rev} (캐시)`
+          : '캐시 없음 — 내장 최소 폴백으로 동작 중',
         '서버 접속 후 세션을 재시작하면 전체 규약이 적용됩니다',
       )
       // ── 서버 점검 (설정이 있을 때만) ──
       if (cfg) {
         if (!wsReady) await connectWithConfig()
-        check(wsReady, '연결', wsReady ? `연결됨 (${cfg.url})` : `연결 실패 (${cfg.url})`, '서버 주소·사내망(VPN)을 확인하세요 — 계속 안 되면 관리자 문의')
+        check(
+          wsReady,
+          '연결',
+          wsReady ? `연결됨 (${cfg.url})` : `연결 실패 (${cfg.url})`,
+          '서버 주소·사내망(VPN)을 확인하세요 — 계속 안 되면 관리자 문의',
+        )
         if (wsReady) {
           try {
             const d = await request({ type: 'doctor' })
             if (d.type === 'doctor') {
               if (d.protocolRev !== null && d.protocolRev !== undefined) {
                 const same = protocolCache?.rev === Number(d.protocolRev)
-                check(same, '규약 rev', same ? `rev ${d.protocolRev} — 최신` : `서버 rev ${d.protocolRev} / 캐시 rev ${protocolCache?.rev ?? '없음'}`, '세션을 재시작하면 새 규약이 적용됩니다')
+                check(
+                  same,
+                  '규약 rev',
+                  same
+                    ? `rev ${d.protocolRev} — 최신`
+                    : `서버 rev ${d.protocolRev} / 캐시 rev ${protocolCache?.rev ?? '없음'}`,
+                  '세션을 재시작하면 새 규약이 적용됩니다',
+                )
               }
               const dHeld = (d.held as string[] | undefined) ?? []
               const dOther = (d.heldByOther as string[] | undefined) ?? []
               const dRooms = (d.rooms ?? {}) as Record<string, string>
-              check(dHeld.length > 0 || Object.keys(dRooms).length === 0, '이 세션 담당 방',
-                dHeld.map(r => `${r}(${dRooms[r]})`).join(', ') || '(없음)',
-                'team_room(rooms:"<방>") 으로 이 세션이 받을 방을 지정하세요')
+              check(
+                dHeld.length > 0 || Object.keys(dRooms).length === 0,
+                '이 세션 담당 방',
+                dHeld.map((r) => `${r}(${dRooms[r]})`).join(', ') || '(없음)',
+                'team_room(rooms:"<방>") 으로 이 세션이 받을 방을 지정하세요',
+              )
               if (dOther.length) {
-                check(false, '수신 자격', `다른 세션이 담당 중인 방: ${dOther.join(', ')}`,
-                  '정상일 수 있습니다 — 그 방은 다른 세션이 받고 있습니다. 이 세션에서 받아야 한다면 team_room 으로 가져오세요 (그 세션은 수신을 잃습니다)')
+                check(
+                  false,
+                  '수신 자격',
+                  `다른 세션이 담당 중인 방: ${dOther.join(', ')}`,
+                  '정상일 수 있습니다 — 그 방은 다른 세션이 받고 있습니다. 이 세션에서 받아야 한다면 team_room 으로 가져오세요 (그 세션은 수신을 잃습니다)',
+                )
               }
-              if (d.away) lines.push('  🌙 퇴근 중 — 수신은 보관됩니다 (team_away mode:"off" 로 출근)')
+              if (d.away)
+                lines.push('  🌙 퇴근 중 — 수신은 보관됩니다 (team_away mode:"off" 로 출근)')
               const q = Number(d.queueForMe ?? 0)
               if (q > 0 && host.isGateway && !d.away) {
-                check(false, '보관 큐', `보관 ${q}건이 배달되지 않고 있습니다`, '/team-relay:status 로 수신 상태 확인 — 다른 claude-team 세션이 수신을 가져갔을 수 있습니다')
+                check(
+                  false,
+                  '보관 큐',
+                  `보관 ${q}건이 배달되지 않고 있습니다`,
+                  '/team-relay:status 로 수신 상태 확인 — 다른 claude-team 세션이 수신을 가져갔을 수 있습니다',
+                )
               } else {
-                check(true, '보관 큐', q === 0 ? '없음' : `보관 ${q}건${d.away ? ' (퇴근 중 — 정상)' : ''}`)
+                check(
+                  true,
+                  '보관 큐',
+                  q === 0 ? '없음' : `보관 ${q}건${d.away ? ' (퇴근 중 — 정상)' : ''}`,
+                )
               }
               const skew = Math.abs(Date.now() - Number(d.serverTime ?? Date.now()))
-              check(skew < 60_000, '시계 동기', `서버와의 차이 ${Math.round(skew / 1000)}초`, '보관 만료·무응답 판정은 서버 시각 기준입니다 — 머신 시계를 확인하세요')
+              check(
+                skew < 60_000,
+                '시계 동기',
+                `서버와의 차이 ${Math.round(skew / 1000)}초`,
+                '보관 만료·무응답 판정은 서버 시각 기준입니다 — 머신 시계를 확인하세요',
+              )
               lines.push(`  ℹ️ 감사 로그: ${d.audit ? '켜짐 (팀 서버에 대화 기록)' : '꺼짐'}`)
             }
           } catch (e) {
@@ -1446,21 +1825,33 @@ mcp.setRequestHandler(CallToolRequestSchema, async req => {
       // 게이트웨이 여부는 항상 표시 — 선언(alias) 기반이라 조용히 어긋나면 안 된다
       const gwLine = `수신(게이트웨이): ${host.isGateway ? '예' : '아니요 — 이 세션은 발신 전용. 팀 메시지 수신은 claude-team 으로 켠 세션에서'}`
       if (!wsReady) await connectWithConfig()
-      if (!wsReady) return ok(`✗ 중계 서버(${cfg.url}) 오프라인 — 내 이름: ${cfg.name}\n${gwLine}\n${autoLine}`)
+      if (!wsReady)
+        return ok(`✗ 중계 서버(${cfg.url}) 오프라인 — 내 이름: ${cfg.name}\n${gwLine}\n${autoLine}`)
       const st = await request({ type: 'status' })
       const stRooms = (st.rooms ?? {}) as Record<string, string>
       const stHeld = (st.held as string[] | undefined) ?? []
       const stOther = (st.heldByOther as string[] | undefined) ?? []
-      const roomLine = `이 세션 담당: ${stHeld.map(r => `${r}(${stRooms[r]})`).join(', ') || '(없음)'}`
+      const roomLine = `이 세션 담당: ${stHeld.map((r) => `${r}(${stRooms[r]})`).join(', ') || '(없음)'}`
       const otherLine = stOther.length
         ? `⚠️ 다른 세션이 담당 중: ${stOther.join(', ')} — 이 세션에서 받으려면 team_room 으로 되찾으세요`
         : null
-      const joinedLine = `참가 중인 방: ${Object.entries(stRooms).map(([r, l]) => `${r}(${l})`).join(', ')}`
+      const joinedLine = `참가 중인 방: ${Object.entries(stRooms)
+        .map(([r, l]) => `${r}(${l})`)
+        .join(', ')}`
       const awayLine = st.myAway
         ? '상태: 🌙 퇴근 중 — 수신은 보관되며(기한 정지), team_away(mode:"off") 로 출근하면 배달됩니다'
         : null
       return ok(
-        [`연결됨 (${cfg.url})`, roomLine, joinedLine, otherLine, gwLine, autoLine, awayLine, formatRoster(st)]
+        [
+          `연결됨 (${cfg.url})`,
+          roomLine,
+          joinedLine,
+          otherLine,
+          gwLine,
+          autoLine,
+          awayLine,
+          formatRoster(st),
+        ]
           .filter(Boolean)
           .join('\n'),
       )
@@ -1474,11 +1865,12 @@ function formatRoster(frame: RelayFrame): string {
   const roster = (frame.roster ?? {}) as Record<string, { online: string[]; offline: string[] }>
   const unresponsive = new Set((frame.unresponsive as string[] | undefined) ?? [])
   const away = new Set((frame.away as string[] | undefined) ?? [])
-  const mark = (n: string): string => `${away.has(n) ? '🌙' : ''}${n}${unresponsive.has(n) ? '⚠️' : ''}`
+  const mark = (n: string): string =>
+    `${away.has(n) ? '🌙' : ''}${n}${unresponsive.has(n) ? '⚠️' : ''}`
   const lines: string[] = []
   for (const [room, r] of Object.entries(roster)) {
-    const on = r.online.map(n => `🟢${mark(n)}`).join(' ')
-    const off = r.offline.map(n => `⚪${mark(n)}`).join(' ')
+    const on = r.online.map((n) => `🟢${mark(n)}`).join(' ')
+    const off = r.offline.map((n) => `⚪${mark(n)}`).join(' ')
     lines.push(`  [${room}] ${[on, off].filter(Boolean).join(' ') || '(혼자)'}`)
   }
   const legend = [
@@ -1541,17 +1933,20 @@ if (host.isGateway) {
   nudge.unref?.()
 
   const beat = setInterval(() => {
-    if (!wsReady) { exportState(); return }
+    if (!wsReady) {
+      exportState()
+      return
+    }
     syncSessionName()
     void request({ type: 'doctor' }).then(
-      d => {
+      (d) => {
         if (d.type === 'doctor') {
           lastQueued = Number(d.queueForMe ?? 0)
           lastAway = !!d.away
           const rooms = (d.rooms ?? {}) as Record<string, string>
           const held = new Set((d.held as string[] | undefined) ?? [])
           const byOther = new Set((d.heldByOther as string[] | undefined) ?? [])
-          lastEmpty = Object.keys(rooms).filter(r => !held.has(r) && !byOther.has(r))
+          lastEmpty = Object.keys(rooms).filter((r) => !held.has(r) && !byOther.has(r))
         }
         exportState()
       },
