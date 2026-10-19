@@ -143,3 +143,11 @@ await mcp.notification({
 - 켤 때 배너 아래 `Channels (experimental) messages from plugin:team-relay… inject directly in this session` 가 보이면 채널 등록 성공
 - `/team-relay:doctor` — 설정 · 팀 세션 여부 · 플러그인 버전 · 서버 연결 · 받는 방 · 보관 큐를 한 번에 점검
 - 메시지가 안 들어오는데 서버는 멀쩡하면 → `/mcp` 상태, 그리고 이 세션이 그 방을 받고 있는지(`/team-relay:status`)
+
+## 6. PROTO 6 로 옮길 때 지킬 것 (4단계 — 아직 적용 전)
+
+Meshwork 와이어 프로토콜(PROTO 6 — [명세](https://github.com/meshwork-ai/meshwork/blob/main/spec/protocol-v6.md))로 옮길 때 Claude Code 쪽에서 새로 정해야 하는 것.
+
+- **받았다는 알림(`ack`)은 Claude Code 세션에 넘긴 뒤에** — 플러그인 프로세스가 `message.new` 를 받으면, 채널 알림(`notifications/claude/channel`)을 보내는 데 **성공한 뒤** 그 `seq` 를 `ack` 한다. 넘기지 못했으면 `ack` 하지 않는다 — 서버가 받은 것으로 치지 않고 다시 보관했다가 보낸다(명세 §1.3 · §8.1). 사람이 읽었다는 뜻이 아니라 프로그램끼리의 수신 확인이다
+- team-relay 의 `team_ack`(「처리 중」)은 PROTO 6 에서 `thread.status`(`working` · `asking`)가 맡는다 — 이름이 같은 `ack` 와 헷갈리지 않게 도구 이름을 정한다
+
