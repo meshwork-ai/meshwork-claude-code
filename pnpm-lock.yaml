@@ -166,27 +166,21 @@ importers:
 
   .:
     devDependencies:
-      '@eslint/js':
-        specifier: 10.0.1
-        version: 10.0.1(eslint@10.12.0)
+      '@meshwork-ai/config':
+        specifier: 0.1.0
+        version: 0.1.0(eslint@10.12.0)(prettier@3.9.10)(typescript@6.0.3)(vitest@5.0.5(@types/node@24.19.2)(vite@8.3.4(@types/node@24.19.2)(esbuild@0.28.2)))
       '@types/node':
         specifier: 24.19.2
         version: 24.19.2
       eslint:
         specifier: 10.12.0
         version: 10.12.0
-      globals:
-        specifier: 17.13.0
-        version: 17.13.0
       prettier:
         specifier: 3.9.10
         version: 3.9.10
       typescript:
         specifier: 6.0.3
         version: 6.0.3
-      typescript-eslint:
-        specifier: 8.71.2
-        version: 8.71.2(eslint@10.12.0)(typescript@6.0.3)
       vitest:
         specifier: 5.0.5
         version: 5.0.5(@types/node@24.19.2)(vite@8.3.4(@types/node@24.19.2)(esbuild@0.28.2))
@@ -454,6 +448,16 @@ packages:
 
   '@keyv/serialize@1.1.1':
     resolution: {integrity: sha512-dXn3FZhPv0US+7dtJsIi2R+c7qWYiReoEh5zUntWCf4oSpMNib8FDhSoed6m3QyZdx5hK7iLFkYk3rNxwt8vTA==}
+
+  '@meshwork-ai/config@0.1.0':
+    resolution: {integrity: sha512-9f7ASBPIfHziz+FSuull24vUtOHlQT3uOXO6KqXCrHGi5zRCqTw+SEZf5V6lFJDxsY7Eb8huUCaWYKmzAqz/Tw==, tarball: https://npm.pkg.github.com/download/@meshwork-ai/config/0.1.0/f23fc90e2def5b1c7b3cac73da6dd17e1f520f60}
+    engines: {node: '>=24'}
+    hasBin: true
+    peerDependencies:
+      eslint: ^10
+      prettier: ^3
+      typescript: ^6
+      vitest: ^5
 
   '@modelcontextprotocol/sdk@1.30.0':
     resolution: {integrity: sha512-xKd8OIzlqNzcqcNumGAa6g+PW2kjD5vrpcKOnfldAUPP3j7lnqMPwlTXQm8gF+UwH72z0lqaRbjr9hqGz0eITA==}
@@ -1663,6 +1667,18 @@ snapshots:
       keyv: 5.6.0
 
   '@keyv/serialize@1.1.1': {}
+
+  '@meshwork-ai/config@0.1.0(eslint@10.12.0)(prettier@3.9.10)(typescript@6.0.3)(vitest@5.0.5(@types/node@24.19.2)(vite@8.3.4(@types/node@24.19.2)(esbuild@0.28.2)))':
+    dependencies:
+      '@eslint/js': 10.0.1(eslint@10.12.0)
+      eslint: 10.12.0
+      globals: 17.13.0
+      prettier: 3.9.10
+      typescript: 6.0.3
+      typescript-eslint: 8.71.2(eslint@10.12.0)(typescript@6.0.3)
+      vitest: 5.0.5(@types/node@24.19.2)(vite@8.3.4(@types/node@24.19.2)(esbuild@0.28.2))
+    transitivePeerDependencies:
+      - supports-color
 
   '@modelcontextprotocol/sdk@1.30.0(zod@4.6.7)':
     dependencies:

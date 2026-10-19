@@ -13,6 +13,10 @@ jobs:
   check:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    # 공용 패키지(@meshwork-ai, GitHub Packages)를 받는다
+    permissions:
+      contents: read
+      packages: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -22,7 +26,13 @@ jobs:
         with:
           node-version-file: .node-version
           cache: pnpm
+          registry-url: https://npm.pkg.github.com
+          scope: '@meshwork-ai'
       - run: pnpm install --frozen-lockfile
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # 저장소 설정(편집기 · npm · 공급망 · Actions 고정)이 기준과 같은지 — @meshwork-ai/config
+      - run: pnpm exec meshwork-config check
       - run: pnpm format
       - run: pnpm lint
       - run: pnpm typecheck
