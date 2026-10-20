@@ -96,8 +96,8 @@ alias claude-team-yolo='TEAM_RELAY_GATEWAY=1 claude --dangerously-skip-permissio
 
 | 상태줄 표시 | 뜻 |
 |---|---|
-| `[team 🟢 repoto-squad01]` | 정상 — 그 방을 받는 중 |
-| `[team 🟢 repoto-squad01 · ⏳2]` | 정상 + 보관 메시지 2건 |
+| `[team 🟢 team-a]` | 정상 — 그 방을 받는 중 |
+| `[team 🟢 team-a · ⏳2]` | 정상 + 보관 메시지 2건 |
 | `[team ⚠️ 담당없음 · 빈방 1]` | 아무 방도 안 받는 중 → `/team-relay:room <방 이름>` |
 | `[team ✗ 연결없음]` | 중계 서버에 못 붙음 |
 | `[team ✗ 플러그인 미동작]` | 플러그인이 죽었거나 아예 못 뜸 → `/mcp` 재연결 또는 Claude Code 재시작. **팀 메시지는 멀쩡한데 이것만 뜬다면** 아래 「잘 안 될 때」를 보라 |
@@ -121,7 +121,7 @@ alias claude-team-yolo='TEAM_RELAY_GATEWAY=1 claude --dangerously-skip-permissio
 - **방에서 말하려면 그 방을 받고 있어야 한다.** 보낸 질문의 답은 그 방을 받는 세션으로 오기
   때문이다 — 받지 않는 세션에서 보내면 답을 받을 수 없다. 그래서 받지 않는 방으로는 보낼 수 없다.
 - **여러 세션**: 세션마다 **다른 방**을 담당할 수 있다(A세션=1번방, B세션=2번방). 담당은
-  `--resume` 재시작 시 유지되고, 새 세션은 `/team-relay:room repoto-squad01` 처럼 방 이름을 붙여 지정한다. 소속 방이
+  `--resume` 재시작 시 유지되고, 새 세션은 `/team-relay:room team-a` 처럼 방 이름을 붙여 지정한다. 소속 방이
   하나뿐이면 자동 담당이라 대부분 신경 쓸 일이 없다.
 - **담당은 실수로 뺏기지 않는다.** 세션을 켜거나 재접속하는 것만으로는 다른 세션이 담당 중인
   방을 가져오지 않는다. 그럴 땐 `[담당 실패]` 안내만 뜨고 **기존 세션이 계속 받는다.** 굳이 이
@@ -159,7 +159,7 @@ alias claude-team-yolo='TEAM_RELAY_GATEWAY=1 claude --dangerously-skip-permissio
   이 세션으로 받으려면 `/team-relay:room <방>` — 그러면 원래 세션은 그 방을 놓는다.
 - 방을 여럿 받는다면 **받는 방에서만** 말할 수 있다. 받지 않는 방으로 보내면:
   ```
-  'repoto-squad01' 방은 다른 세션이 받고 있어 이 세션에서는 보낼 수 없습니다
+  'team-a' 방은 다른 세션이 받고 있어 이 세션에서는 보낼 수 없습니다
   ```
 
 ### 방을 더 받고 싶을 때
@@ -176,7 +176,7 @@ alias claude-team-yolo='TEAM_RELAY_GATEWAY=1 claude --dangerously-skip-permissio
 둘 다 받으려면 한 줄 더 — 쉼표로 여러 개를 준다:
 
 ```text
-/team-relay:room repoto-squad01,web3-front
+/team-relay:room team-a,web3-front
 ```
 
 **방마다 세션을 나누는 쪽을 권한다.** 한 세션이 두 방을 받으면 그 창에 두 방 메시지가 섞이고
@@ -185,7 +185,7 @@ alias claude-team-yolo='TEAM_RELAY_GATEWAY=1 claude --dangerously-skip-permissio
 ### 이름은 방마다 다를 수 있다
 
 신원은 **머신 하나에 하나**고, 그 아래 **방마다 다른 이름(라벨)** 을 가질 수 있다. 어떤 방에선
-`배재원`, 다른 방에선 `재원` 으로 불려도 같은 사람이다. 받은 메시지의 방이 대화의 맥락이다.
+`이하늘`, 다른 방에선 `하늘` 으로 불려도 같은 사람이다. 받은 메시지의 방이 대화의 맥락이다.
 
 ---
 
@@ -222,8 +222,8 @@ alias claude-team-yolo='TEAM_RELAY_GATEWAY=1 claude --dangerously-skip-permissio
 | 하고 싶은 것 | 명령어 예시 | 결과 |
 |---|---|---|
 | 받는 방 보기·고르기 | `/team-relay:room` | 참가 중인 방과 각 방을 어느 세션이 받는지 보여주고, 고르는 창이 뜬다 |
-| 이 세션이 받을 방 지정 | `/team-relay:room repoto-squad01` | `✓ 이 세션 담당: repoto-squad01(재원)` |
-| 여러 방 받기 | `/team-relay:room repoto-squad01,web3-front` | 쉼표로 적은 방을 모두 받는다 |
+| 이 세션이 받을 방 지정 | `/team-relay:room team-a` | `✓ 이 세션 담당: team-a(하늘)` |
+| 여러 방 받기 | `/team-relay:room team-a,web3-front` | 쉼표로 적은 방을 모두 받는다 |
 | 다른 세션이 받던 방 가져오기 | `/team-relay:room web3-front` | `↪ … 가져왔습니다` — **원래 세션은 그 방 수신을 잃는다** |
 
 ### `/team-relay:away` — 퇴근 · 출근
@@ -276,10 +276,10 @@ alias claude-team-yolo='TEAM_RELAY_GATEWAY=1 claude --dangerously-skip-permissio
 
 | 하고 싶은 것 | 명령어 예시 | 결과 |
 |---|---|---|
-| 초대코드 발급 | `/team-relay:owner invite repoto-squad01 선혁` | 1회용 초대코드 `TR-…` — 새 팀원에게 전달한다. 이름은 **그 방에서만** 쓰이므로 다른 방과 달라도 된다 |
-| 방에서 빼기 | `/team-relay:owner kick repoto-squad01 선혁` | **그 방에서만** 빠진다. 토큰과 다른 방 소속은 그대로 |
-| 방 전체 공지 | `/team-relay:owner notice repoto-squad01 내일 오전 배포라 11시까지 머지해주세요` | 배달·보관 건수. 받는 쪽은 답하지 않고 화면에 표시만 한다 |
-| 방 메모리 보기·고치기 | `/team-relay:owner memory repoto-squad01`<br>이어서 *"2번 지우고 '금요일 배포 금지' 추가해줘"* · *"가영 제안 승인해줘"* | 지금 메모리와 대기 중인 제안이 보이고, 고치면 그 방 세션들에 바로 알려진다 |
+| 초대코드 발급 | `/team-relay:owner invite team-a 민준` | 1회용 초대코드 `TR-…` — 새 팀원에게 전달한다. 이름은 **그 방에서만** 쓰이므로 다른 방과 달라도 된다 |
+| 방에서 빼기 | `/team-relay:owner kick team-a 민준` | **그 방에서만** 빠진다. 토큰과 다른 방 소속은 그대로 |
+| 방 전체 공지 | `/team-relay:owner notice team-a 내일 오전 배포라 11시까지 머지해주세요` | 배달·보관 건수. 받는 쪽은 답하지 않고 화면에 표시만 한다 |
+| 방 메모리 보기·고치기 | `/team-relay:owner memory team-a`<br>이어서 *"2번 지우고 '금요일 배포 금지' 추가해줘"* · *"지은 제안 승인해줘"* | 지금 메모리와 대기 중인 제안이 보이고, 고치면 그 방 세션들에 바로 알려진다 |
 
 - 방 메모리는 **설명 1줄 + 내용 3개까지, 칸마다 150자**다. 이유가 필요하면 내용에 함께 쓴다
   (*"금요일 배포 금지 — 주말 호출 방지"*).
@@ -292,9 +292,9 @@ alias claude-team-yolo='TEAM_RELAY_GATEWAY=1 claude --dangerously-skip-permissio
 
 | 하고 싶은 것 | 이렇게 말하기 | 결과 |
 |---|---|---|
-| 팀원에게 질문 | *"임규영에게 배포 일정 물어봐줘"* | 보내진다. 상대가 꺼져 있으면 "보관됨" — 켜질 때 배달된다 |
-| 답이 필요 없는 전달 | *"규영님께 배포 끝났다고 알려만 줘"* | 무응답 알림 없이 전달만 된다 |
-| 지난 대화 찾기 | *"규영이랑 주고받은 메시지 보여줘"* | 내 문답만 조회된다 (남의 대화는 못 본다) |
+| 팀원에게 질문 | *"박도윤에게 배포 일정 물어봐줘"* | 보내진다. 상대가 꺼져 있으면 "보관됨" — 켜질 때 배달된다 |
+| 답이 필요 없는 전달 | *"도윤님께 배포 끝났다고 알려만 줘"* | 무응답 알림 없이 전달만 된다 |
+| 지난 대화 찾기 | *"도윤이랑 주고받은 메시지 보여줘"* | 내 문답만 조회된다 (남의 대화는 못 본다) |
 | 합의 기록 | *"방금 합의한 스키마 대장에 올려줘"* | 상대 에이전트가 대화와 맞는지 확인하면 확정 — 같은 방 전원이 볼 수 있다 |
 | 합의 목록 보기 | *"web3-front 방 합의 목록 보여줘"* | 확정된 합의들 |
 | 방 메모리 보기 | *"web3-front 방 메모리 보여줘"* | 그 방의 설명과 내용(최대 3개) |
@@ -313,14 +313,14 @@ alias claude-team-yolo='TEAM_RELAY_GATEWAY=1 claude --dangerously-skip-permissio
 - 같은 방에 **누가 들어오고 나가면 알림**이 온다. 모르는 이름에게 메시지가 오거나, 사라진
   사람에게 계속 보내는 일을 막아 준다. **내 입·퇴장은 나에게 오지 않는다.**
   ```
-  [방 참가] 'repoto-squad01' 방에 '선혁'님이 참가했습니다.
-  [방 퇴장] 'repoto-squad01' 방에서 '선혁'님이 나갔습니다.
+  [방 참가] 'team-a' 방에 '민준'님이 참가했습니다.
+  [방 퇴장] 'team-a' 방에서 '민준'님이 나갔습니다.
   ```
 
 ### 방 메모리
 
 방마다 **그 방에서 알아야 할 짧은 사실**이 적혀 있을 수 있다 — 설명 한 줄과 내용 최대 3개.
-예: *"백엔드 판단은 이경환"*, *"금요일 배포 금지"*. 방장·관리자가 정리한다.
+예: *"백엔드 판단은 정우진"*, *"금요일 배포 금지"*. 방장·관리자가 정리한다.
 
 - **세션을 시작할 때 자동으로 들어온다.** 새로 켜도, 다른 디렉토리에서 켜도, resume 하지 않아도
   그 방의 사실을 처음부터 안다. 비어 있는 방은 아무것도 들어오지 않는다.

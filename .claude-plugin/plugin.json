@@ -6,5 +6,6 @@
     "name": "jwbae",
     "email": "hohre12@gmail.com"
   },
-  "keywords": ["team", "messaging", "channel", "cross-machine", "mcp"]
+  "keywords": ["team", "messaging", "channel", "cross-machine", "mcp"],
+  "license": "MIT"
 }

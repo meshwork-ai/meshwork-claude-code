@@ -40,10 +40,10 @@ const mcp = new Server(
 ```ts
 await mcp.notification({
   method: 'notifications/claude/channel',
-  params: { content: '<본문>', meta: { from: '임규영', room: 'web3', thread: 't-1a2b3c4d', ... } },
+  params: { content: '<본문>', meta: { from: '박도윤', room: 'web3', thread: 't-1a2b3c4d', ... } },
 })
 ```
-세션에는 `<channel from="임규영" room="web3" thread="t-1a2b3c4d" ...>본문</channel>` 로 보인다.
+세션에는 `<channel from="박도윤" room="web3" thread="t-1a2b3c4d" ...>본문</channel>` 로 보인다.
 
 **meta 로 싣는 것** (`plugin/server.ts` `deliverToSession`)
 
