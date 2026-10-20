@@ -1,0 +1,34 @@
+name: 취약점 경보
+
+# 의존 패키지 취약점 경보(아키텍처 §18.2 · §19.3) — 매일 + 잠금 파일이 바뀔 때.
+# 실패하면 GitHub 가 알린다. 고치는 PR 은 Renovate 가 연다(renovate.json — vulnerabilityAlerts)
+on:
+  schedule:
+    - cron: '0 0 * * *' # 매일 09:00 KST
+  push:
+    branches: [main]
+    paths: [pnpm-lock.yaml]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+          registry-url: https://npm.pkg.github.com
+          scope: '@meshwork-ai'
+      # 설치 없이 잠금 파일만 본다 — 높음 이상이면 실패
+      - run: pnpm audit --audit-level=high

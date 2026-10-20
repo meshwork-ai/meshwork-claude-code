@@ -1,0 +1,46 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": "의존 패키지 갱신(아키텍처 §18.2) — 새 버전은 3일 기다림(pnpm minimumReleaseAge 와 같게) · 취약점 수정은 바로",
+  "extends": ["config:recommended", "helpers:pinGitHubActionDigestsToSemver", "docker:pinDigests"],
+  "timezone": "Asia/Seoul",
+  "schedule": ["before 9am on monday"],
+  "minimumReleaseAge": "3 days",
+  "internalChecksFilter": "strict",
+  "rangeStrategy": "pin",
+  "prConcurrentLimit": 5,
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": ["before 9am on the first day of the month"]
+  },
+  "vulnerabilityAlerts": {
+    "enabled": true,
+    "schedule": ["at any time"],
+    "minimumReleaseAge": null,
+    "labels": ["security"]
+  },
+  "osvVulnerabilityAlerts": true,
+  "hostRules": [
+    {
+      "description": "공용 패키지(@meshwork-ai) — GitHub Packages 읽기 토큰(read:packages)은 Renovate 앱의 비밀값",
+      "matchHost": "npm.pkg.github.com",
+      "hostType": "npm",
+      "token": "{{ secrets.MESHWORK_PACKAGES_TOKEN }}"
+    }
+  ],
+  "packageRules": [
+    {
+      "description": "우리 CI 가 검사해 올린 공용 패키지는 기다리지 않는다(pnpm-workspace.yaml 과 같게)",
+      "matchPackageNames": ["@meshwork-ai/**"],
+      "minimumReleaseAge": null,
+      "groupName": "Meshwork 공용 패키지"
+    },
+    { "matchPackageNames": ["@nestjs/**"], "groupName": "NestJS" },
+    { "matchPackageNames": ["drizzle-orm", "drizzle-kit"], "groupName": "Drizzle" },
+    { "matchPackageNames": ["@swc/**", "unplugin-swc"], "groupName": "SWC" },
+    {
+      "description": "큰 버전은 대시보드에서 승인한 뒤에 PR",
+      "matchUpdateTypes": ["major"],
+      "dependencyDashboardApproval": true
+    }
+  ]
+}
