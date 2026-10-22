@@ -40,3 +40,31 @@ jobs:
       # 번들(dist/server.mjs)은 커밋해 배포한다 — 소스와 다르면 실패(아키텍처 §19.3)
       - run: git diff --exit-code -- plugin/dist
       - run: pnpm test
+
+  # 최소 Node 22(결정 대장 3단계 ①) — 번들을 사용자 PC 와 같은 Node 22 로 띄워 본다(설치 · 빌드는 Node 24)
+  node22:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+          registry-url: https://npm.pkg.github.com
+          scope: '@meshwork-ai'
+      - run: pnpm install --frozen-lockfile
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+      # 번들을 띄우는 시험만 — 시험 틀이 지금 Node(22)로 번들을 띄운다
+      - run: node --version && node node_modules/vitest/vitest.mjs run plugin/test/bundle.test.ts plugin/test/guard.test.ts
+
