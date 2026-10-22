@@ -14,6 +14,7 @@
  * | basis · uncommitted | 원격 저장소 기준 · 커밋 전 내용 |
  * | agree · proposal | 합의 제안 id · 방 메모리 제안 id(처리할 때 그대로) |
  * | expect | 답장 안의 추가 질문(되묻기)일 때만 `reply` — 그 답장에 답해야 한다 |
+ * | open | 열린 대화(명세 §10.7)일 때 `room` — 이 대화는 방 사람 모두에게 보인다(여기서 답해도 공개) |
  */
 import { formatCode, type Lang } from '@meshwork-ai/i18n'
 import type { EvData } from '@meshwork-ai/protocol'
@@ -71,6 +72,7 @@ export function tagMessage(m: Message, ctx: TagContext): Tagged {
   if (m.agree) meta.agree = m.agree
   if (m.proposal) meta.proposal = m.proposal
   if (m.kind === 'reply' && m.expect === 'reply') meta.expect = 'reply'
+  if (m.open) meta.open = 'room'
   const content = m.kind === 'system' ? systemText(m, ctx) : (m.text ?? '')
   return { content: defang(content), meta }
 }

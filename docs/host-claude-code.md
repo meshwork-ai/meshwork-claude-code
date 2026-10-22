@@ -8,7 +8,7 @@
 >
 > 출처: [channels-reference](https://code.claude.com/docs/en/channels-reference) · [hooks](https://code.claude.com/docs/en/hooks) ·
 > 공식 discord 플러그인 소스(2026-08-10 조사) · team-relay 운영 실측(2026-09 ~ 10). 채널은 **research preview** 다 — Claude Code 가 바뀌면 다시 확인할 것.
-> 기준: 플러그인 0.1.0 (2026-10-22)
+> 기준: 플러그인 0.2.0 (2026-10-22)
 
 ---
 

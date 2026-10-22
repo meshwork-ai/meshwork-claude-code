@@ -29,7 +29,7 @@ export class Plugin {
   readonly dir: Directory
   lang: Lang = 'ko'
   /** 받은 질문 — 대화 id → 보낸 사람 · 방 (가로채기 판단) */
-  readonly received = new Map<string, { from: string; room?: string }>()
+  readonly received = new Map<string, { from: string; room?: string; open?: boolean }>()
   /** 이 세션에서 답한 대화 */
   readonly repliedHere = new Set<string>()
   /** 다른 곳(앱 · 다른 기기)에서 이미 답한 대화 — reply 가 거절한다 */
@@ -45,6 +45,8 @@ export class Plugin {
   heldElsewhere: string[] = []
   /** 퇴근 중 */
   off = false
+  /** 사람이 「이 세션 동안」 남의 열린 대화 읽기를 허락했나(명세 §10.7 — history 가 묻는다) */
+  openRead = false
   orgNotice: { text: string; endsAt: string } | null = null
   serviceNotices: EvData<'service.notice'>['notices'] = []
   private sentName?: string
@@ -192,7 +194,11 @@ export class Plugin {
     const needsAnswer = m.kind === 'question' || (m.kind === 'reply' && m.expect === 'reply')
     if (needsAnswer && !this.autoReply) tagged.meta.autoreply = 'off'
     if (m.thread && m.from && (needsAnswer || m.kind === 'agree')) {
-      this.received.set(m.thread, { from: m.from.name, ...(m.room ? { room: m.room } : {}) })
+      this.received.set(m.thread, {
+        from: m.from.name,
+        ...(m.room ? { room: m.room } : {}),
+        ...(m.open ? { open: true } : {}),
+      })
       this.answeredElsewhere.delete(m.thread)
       this.repliedHere.delete(m.thread)
     }
@@ -397,10 +403,10 @@ export class Plugin {
       team: this.host.isTeam,
       link: this.linkKind(),
       stopped: s.kind === 'stopped' ? (s.code ?? s.reason) : null,
-      held: held.map((r) => plain(this.roomLabel(r))),
+      held: held.map((r) => plain(this.dir.roomTitle(r) ?? r)),
       empty: joined
         .filter((r) => !held.includes(r) && !this.heldElsewhere.includes(r))
-        .map((r) => plain(this.roomLabel(r))),
+        .map((r) => plain(this.dir.roomTitle(r) ?? r)),
       queued: this.queued,
       off: this.off,
       contextChanged: this.link.contextChanged,
@@ -450,8 +456,16 @@ function toRef(r: {
   myName: string
   role: 'owner' | 'member'
   archived: boolean
+  open?: boolean | undefined
 }): RoomRef {
-  return { id: r.id, name: r.name, myName: r.myName, role: r.role, archived: r.archived }
+  return {
+    id: r.id,
+    name: r.name,
+    myName: r.myName,
+    role: r.role,
+    archived: r.archived,
+    open: r.open === true,
+  }
 }
 
 function roomsConfig(

@@ -18,6 +18,8 @@ export interface RoomRef {
   myName: string
   role: 'owner' | 'member'
   archived: boolean
+  /** 열린 방(명세 §10.7) — 이 방에서 시작하는 대화는 방 사람 모두에게 보인다 */
+  open: boolean
 }
 
 /** 이름 비교 — NFC 정규화 후 대소문자 무시(명세 §4.5 와 같은 규칙) */
@@ -73,6 +75,12 @@ export class Directory {
 
   roomName = (id: string): string | undefined =>
     this.rooms.find((r) => r.id === id)?.name ?? this.known.get(id)
+
+  /** 보이는 방 이름 — 열린 방이면 ` [열림]`(상태줄 · status) */
+  roomTitle = (id: string): string | undefined => {
+    const r = this.rooms.find((x) => x.id === id)
+    return r ? `${r.name}${r.open ? ' [열림]' : ''}` : this.known.get(id)
+  }
 
   /** 방 이름 · id → 방 */
   room(input: string): RoomRef | undefined {

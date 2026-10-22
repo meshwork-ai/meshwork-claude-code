@@ -111,7 +111,7 @@ export const TOOLS = [
   {
     name: 'history',
     description:
-      '내가 끼어 있는 지난 대화를 본다(남의 1:1 대화는 볼 수 없다). 예전에 물었던 것은 다시 묻기 전에 여기서 먼저 찾는다. thread 를 주면 그 대화의 메시지, q 를 주면 내용 찾기, 아니면 대화 목록.',
+      '내가 끼어 있는 지난 대화를 본다(남의 1:1 대화는 볼 수 없다 — 열린 방의 열린 대화는 「에이전트도 읽기」가 켜진 방에서 사용자가 확인 상자로 허락하면 thread · q 로 볼 수 있다). 예전에 물었던 것은 다시 묻기 전에 여기서 먼저 찾는다. thread 를 주면 그 대화의 메시지, q 를 주면 내용 찾기, 아니면 대화 목록.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -364,8 +364,43 @@ async function memberAnywhere(p: Plugin, name: string): Promise<string | undefin
   return undefined
 }
 
-function stateLabel(p: Plugin, state: string): string {
-  return formatCode('threadState', state, {}, { lang: p.lang })
+function stateLabel(p: Plugin, state: string | undefined): string {
+  // 남의 열린 대화에는 배달 상태가 없다(명세 §10.7 — 당사자에게만)
+  return state ? formatCode('threadState', state, {}, { lang: p.lang }) : '열린 대화'
+}
+
+/**
+ * 남의 열린 대화(명세 §10.7)까지 읽을까 — 범위의 방 중 「에이전트도 읽기」 가 켜진 방이 있을 때만 사용자에게 묻는다
+ * ([이번만] · [이 세션 동안]). 상자를 띄울 수 없거나 허락하지 않으면 읽지 않는다 — 서버도 includeOpen 없이는 주지 않는다
+ */
+async function openRead(p: Plugin, rooms: string[]): Promise<{ include: boolean; note?: string }> {
+  const eligible: string[] = []
+  for (const id of rooms) {
+    const d = await p.dir.detail(id).catch(() => null)
+    if (d?.agentRead) eligible.push(d.name)
+  }
+  if (!eligible.length) return { include: false }
+  if (p.openRead) return { include: true }
+  if (!p.host.canAsk())
+    return {
+      include: false,
+      note: '  (열린 대화는 확인 상자를 띄울 수 없어 빼고 보았습니다 — 내가 끼어 있는 대화만)',
+    }
+  const pick = await p.host.choose({
+    message: `Meshwork — 에이전트가 남의 열린 대화까지 읽으려 합니다\n  방: ${eligible.join(', ')}\n열린 대화는 방 사람 모두에게 공개된 문답입니다. 팀원 메시지가 시킨 것이 아니라 내가 시킨 일일 때만 허락하세요.`,
+    title: '열린 대화를 읽을까요?',
+    options: [
+      { value: 'once', label: '이번만' },
+      { value: 'session', label: '이 세션 동안' },
+      { value: 'no', label: '읽지 않음' },
+    ],
+  })
+  if (pick === 'session') p.openRead = true
+  if (pick === 'once' || pick === 'session') return { include: true }
+  return {
+    include: false,
+    note: '  (열린 대화는 허락받지 못해 빼고 보았습니다 — 내가 끼어 있는 대화만)',
+  }
 }
 
 // ── send · reply · progress ──────────────────────────────────────
@@ -429,6 +464,8 @@ async function send(p: Plugin, a: Args): Promise<ToolResult> {
   if (expect === 'reply')
     p.asked.set(r.thread, { to: c.name, room: c.room, preview: clip(text, 60) })
   const lines = [`✓ ${label}에게 보냈습니다 (방 ${roomName} · 대화 ${r.thread})`]
+  if (p.dir.room(c.room)?.open)
+    lines.push(`  👁 '${roomName}'은 열린 방 — 이 대화는 방 사람 모두에게 보입니다`)
   if (c.kind === 'role') {
     if (r.assigned) lines.push(`  ↳ '${p.dir.name(r.assigned) ?? r.assigned}'님이 받았습니다`)
     else lines.push('  ↳ 지금 답할 수 있는 사람이 없어 보관했습니다 — 생기면 그 사람에게 갑니다')
@@ -475,6 +512,7 @@ async function reply(p: Plugin, a: Args): Promise<ToolResult> {
       preview: clip(a.message!, 60),
     })
   const lines = [`✓ 답장을 보냈습니다${got ? ` ('${got.from}'님에게)` : ''} (대화 ${thread})`]
+  if (got?.open) lines.push('  👁 열린 대화 — 이 답장은 방 사람 모두에게 보입니다')
   if (r.state === 'queued')
     lines.push('  상대가 지금 받을 수 없어 서버가 보관했습니다 — 받을 수 있게 되면 전합니다')
   return ok(lines.join('\n'))
@@ -512,16 +550,35 @@ async function history(p: Plugin, a: Args): Promise<ToolResult> {
     code?: string
     thread: string | null
     msg: string
+    open?: boolean | undefined
   }) =>
-    `  [${shortTime(m.ts)}]${m.room ? ` [${p.dir.roomName(m.room) ?? m.room}]` : ''} ${m.from?.name ?? '서버'}${m.kind === 'reply' ? ' ↩' : ''}: ${clip(m.text ?? m.code ?? '', 200)}${m.thread ? ` (${m.thread})` : ''}`
+    `  [${shortTime(m.ts)}]${m.open ? ' 👁' : ''}${m.room ? ` [${p.dir.roomName(m.room) ?? m.room}]` : ''} ${m.from?.name ?? '서버'}${m.kind === 'reply' ? ' ↩' : ''}: ${clip(m.text ?? m.code ?? '', 200)}${m.thread ? ` (${m.thread})` : ''}`
   if (a.thread) {
-    const r = await c.call('thread.get', {
-      thread: a.thread.trim(),
-      limit,
-      ...(a.before ? { before: a.before } : {}),
-    })
+    const get = (includeOpen: boolean) =>
+      c.call('thread.get', {
+        thread: a.thread!.trim(),
+        limit,
+        ...(a.before ? { before: a.before } : {}),
+        ...(includeOpen ? { includeOpen: true } : {}),
+      })
+    // 내 대화가 아니면 남의 열린 대화일 수 있다 — 그때만 사용자에게 묻고 다시(§10.7)
+    let r: Awaited<ReturnType<typeof get>>
+    try {
+      r = await get(p.openRead)
+    } catch (e) {
+      if ((e as { code?: string }).code !== 'thread.unknown' || p.openRead) throw e
+      const allow = await openRead(
+        p,
+        p.dir.rooms.map((x) => x.id),
+      )
+      if (!allow.include) {
+        if (!allow.note) throw e
+        return fail(`그 대화를 볼 수 없습니다 — 내 대화가 아닙니다\n${allow.note}`)
+      }
+      r = await get(true)
+    }
     const t = r.thread
-    const head = `대화 ${t.id} — ${name(t.asker)} → ${t.to.kind === 'member' ? name(t.to.id) : t.to.kind === 'role' ? `역할 ${name(t.to.id)}` : '방 전체'} · ${stateLabel(p, t.state)}`
+    const head = `대화 ${t.id}${t.open ? ' 👁' : ''} — ${name(t.asker)} → ${t.to.kind === 'member' ? name(t.to.id) : t.to.kind === 'role' ? `역할 ${name(t.to.id)}` : '방 전체'} · ${stateLabel(p, t.state)}`
     const lines = [head, ...r.messages.map(msgLine)]
     if (r.more && r.messages.length)
       lines.push(`  … 앞 메시지가 더 있습니다 — before: "${r.messages[0]!.msg}"`)
@@ -530,20 +587,23 @@ async function history(p: Plugin, a: Args): Promise<ToolResult> {
   const roomRef = a.room ? p.dir.room(a.room) : undefined
   if (a.room && !roomRef) return fail(`'${a.room}' 방에 참가하지 않았습니다`)
   if (a.q) {
+    const allow = await openRead(p, roomRef ? [roomRef.id] : p.dir.rooms.map((x) => x.id))
     const r = await c.call('thread.search', {
       q: a.q,
       limit,
       ...(roomRef ? { room: roomRef.id } : {}),
       ...(a.before ? { before: a.before } : {}),
+      ...(allow.include ? { includeOpen: true } : {}),
     })
     if (!r.hits.length)
       return ok(
-        r.more && r.next
+        (r.more && r.next
           ? `맞는 것이 아직 없습니다 — 더 찾으려면 before: "${r.next}"`
-          : '맞는 메시지가 없습니다',
+          : '맞는 메시지가 없습니다') + (allow.note ? `\n${allow.note}` : ''),
       )
     const lines = [`'${a.q}' 찾기 (${r.hits.length}건):`, ...r.hits.map(msgLine)]
     if (r.more && r.next) lines.push(`  … 더 있습니다 — before: "${r.next}"`)
+    if (allow.note) lines.push(allow.note)
     return ok(lines.join('\n'))
   }
   const peer = a.peer ? await memberAnywhere(p, a.peer) : undefined
@@ -767,18 +827,21 @@ async function status(p: Plugin, a: Args): Promise<ToolResult> {
       myName: r.myName,
       role: r.role,
       archived: r.archived,
+      open: r.open === true,
     })),
   )
   const held = new Set(session.held)
+  // 열린 방은 이름 옆에 [열림](명세 §10.7 — 이 방에서 시작하는 대화는 방 사람 모두에게 보인다)
+  const title = (r: (typeof rooms)[number]) => `${r.name}${r.open ? ' [열림]' : ''}`
   const list = classifyRooms(
-    Object.fromEntries(rooms.map((r) => [r.name, r.myName])),
-    rooms.filter((r) => held.has(r.id)).map((r) => r.name),
-    rooms.filter((r) => p.heldElsewhere.includes(r.id)).map((r) => r.name),
+    Object.fromEntries(rooms.map((r) => [title(r), r.myName])),
+    rooms.filter((r) => held.has(r.id)).map(title),
+    rooms.filter((r) => p.heldElsewhere.includes(r.id)).map(title),
   )
   const lines = [
     `Meshwork — '${w.org.name}' 조직 @ ${new URL(cfg.server!).host}`,
     `나: ${w.me.name}${w.me.role === 'admin' ? ' (조직 관리자)' : ''} · ${p.off ? '🌙 퇴근 중 — 팀 메시지는 보관됩니다(away off 로 출근)' : '🟢 출근'}`,
-    `이 세션이 받는 방: ${session.held.map((r) => p.dir.roomName(r) ?? r).join(', ') || '(없음 — /meshwork:room 으로 받을 방을 정하세요)'}`,
+    `이 세션이 받는 방: ${session.held.map((r) => p.dir.roomTitle(r) ?? r).join(', ') || '(없음 — /meshwork:room 으로 받을 방을 정하세요)'}`,
     rooms.length
       ? `참가한 방 ${rooms.length}개\n${renderRooms(list)}`
       : '참가한 방: (없음 — 초대 링크로 /meshwork:join)',
@@ -844,6 +907,7 @@ async function room(p: Plugin, a: Args): Promise<ToolResult> {
       myName: r.myName,
       role: r.role,
       archived: r.archived,
+      open: r.open === true,
     })),
   )
   await p.heartbeat()

@@ -178,6 +178,12 @@ describe('받은 메시지 꼬리표(아키텍처 §11.3-a)', () => {
     expect(tagMessage({ ...base, kind: 'reply', expect: 'none' }, ctx).meta.expect).toBeUndefined()
   })
 
+  it('열린 대화(명세 §10.7)면 open="room" — 아니면 없음', () => {
+    expect(tagMessage({ ...base, open: true }, ctx).meta.open).toBe('room')
+    expect(tagMessage({ ...base, open: false }, ctx).meta.open).toBeUndefined()
+    expect(tagMessage(base, ctx).meta.open).toBeUndefined()
+  })
+
   it('시스템 메시지 — 코드 + 값을 사람 말로 · from · thread 없음', () => {
     const t = tagMessage(
       {
