@@ -12,7 +12,13 @@ import {
   NOT_TEAM_INSTRUCTIONS,
   TOOL_GUIDE,
 } from '../app/instructions'
-import { loadConfig, normalizeServer, rememberedRooms, saveConfig } from '../core/config'
+import {
+  loadConfig,
+  normalizeServer,
+  rememberedRooms,
+  rememberedSid,
+  saveConfig,
+} from '../core/config'
 import { mergeRoutes } from '../core/routes'
 import { type Message, tagMessage } from '../core/tags'
 import { tempHome } from './harness'
@@ -26,15 +32,19 @@ describe('설정 — 한 기기의 여러 세션이 같은 파일', () => {
   it('내 세션 항목만 쓴다 · 남의 세션 기록은 디스크 그대로 · 0600', () => {
     saveConfig(
       path,
-      { server: 'https://mw.example', org: 'org_A', sessions: { a: ['room_1'] } },
+      { server: 'https://mw.example', org: 'org_A', sessions: { a: { rooms: ['room_1'] } } },
       { sessionId: 'a' },
     )
     // 다른 세션이 끼어들어 자기 것을 씀
-    saveConfig(path, { sessions: { b: ['room_2'] } }, { sessionId: 'b' })
+    saveConfig(path, { sessions: { b: { rooms: ['room_2'] } } }, { sessionId: 'b' })
     // a 가 옛 사본(b 를 모름)으로 저장해도 b 는 남는다
-    saveConfig(path, { sessions: { a: ['room_3'] }, autoReply: false }, { sessionId: 'a' })
+    saveConfig(
+      path,
+      { sessions: { a: { rooms: ['room_3'] } }, autoReply: false },
+      { sessionId: 'a' },
+    )
     const cfg = loadConfig(path)!
-    expect(cfg.sessions).toEqual({ b: ['room_2'], a: ['room_3'] })
+    expect(cfg.sessions).toEqual({ b: { rooms: ['room_2'] }, a: { rooms: ['room_3'] } })
     expect(cfg.autoReply).toBe(false)
     expect(statSync(path).mode & 0o777).toBe(0o600)
   })
@@ -59,7 +69,7 @@ describe('설정 — 한 기기의 여러 세션이 같은 파일', () => {
 
   it('세션 기록은 50개까지(오래된 것부터 밀림)', () => {
     for (let i = 0; i < 55; i++)
-      saveConfig(path, { sessions: { [`s${i}`]: ['r'] } }, { sessionId: `s${i}` })
+      saveConfig(path, { sessions: { [`s${i}`]: { rooms: ['r'] } } }, { sessionId: `s${i}` })
     const keys = Object.keys(loadConfig(path)!.sessions!)
     expect(keys).toHaveLength(50)
     expect(keys[0]).toBe('s5')
@@ -73,11 +83,18 @@ describe('설정 — 한 기기의 여러 세션이 같은 파일', () => {
     expect(loadConfig(path)).toBeNull()
   })
 
+  it('다시 켤 때의 서버 세션 — 꼴이 맞는 것만', () => {
+    const sid = 'ses_01M5H2FJWR4AHGVYBT2A03T0D5'
+    expect(rememberedSid({ sessions: { s: { sid, rooms: [] } } }, 's')).toBe(sid)
+    expect(rememberedSid({ sessions: { s: { sid: 'x', rooms: [] } } }, 's')).toBeUndefined()
+    expect(rememberedSid({ sessions: { s: { sid, rooms: [] } } }, '')).toBeUndefined()
+  })
+
   it('켤 때 받을 방 — 기억한 방(지금도 참가 중인 것만) · 없으면 참가한 방이 하나일 때만', () => {
     const rooms = { room_1: { name: 'a', myName: 'x' }, room_2: { name: 'b', myName: 'x' } }
-    expect(rememberedRooms({ rooms, sessions: { s: ['room_2', 'room_9'] } }, 's')).toEqual([
-      'room_2',
-    ])
+    expect(
+      rememberedRooms({ rooms, sessions: { s: { rooms: ['room_2', 'room_9'] } } }, 's'),
+    ).toEqual(['room_2'])
     expect(rememberedRooms({ rooms }, 's')).toEqual([])
     expect(rememberedRooms({ rooms: { room_1: rooms.room_1 } }, 's')).toEqual(['room_1'])
     expect(rememberedRooms({ rooms: { room_1: rooms.room_1 } }, '')).toEqual(['room_1'])

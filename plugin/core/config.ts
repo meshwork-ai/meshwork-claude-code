@@ -20,16 +20,25 @@ export interface RoomInfo {
   myName: string
 }
 
+export interface SessionMemory {
+  /** 서버 세션(`ses_`) — 같은 기기라 다시 열 수 있다(붙잡기 5분 안이면 받던 방을 조용히 이어받음) */
+  sid?: string
+  /** 받는 방 id */
+  rooms: string[]
+}
+
 export interface Config {
   /** 서비스 주소 — `https://<서버>` (첫 로그인 때 입력 · 3단계 ⑥) */
   server?: string
   /** 이 기기가 붙는 조직 */
   org?: string
   orgName?: string
+  /** 내 언어(서버의 사용자 설정 — 규약을 이 언어로 받는다 · 명세 §4.6 · §12) */
+  lang?: string
   /** 내가 참가한 방 — id → 이름(서버가 진실 · 표시용 사본 · 세션을 켤 때 방 메모리를 미리 고르는 데) */
   rooms?: Record<string, RoomInfo>
-  /** Claude 세션 id → 받는 방 id — `--resume` 하면 되찾는다(명세 §5.2) */
-  sessions?: Record<string, string[]>
+  /** Claude 세션 id → 서버 세션 · 받는 방 — `--resume` 하면 같은 서버 세션으로 다시 열어 받던 방을 되찾는다(명세 §5.1 · §5.2) */
+  sessions?: Record<string, SessionMemory>
   /** 질문 배분 — 이런 질문은 이 기기의 저 세션에 위임 */
   routes?: RouteEntry[]
   /** 자동 답장(기본 켜짐) — 끄면 답장 초안을 사용자에게 보이고 승인받은 뒤 보낸다 */
@@ -51,7 +60,7 @@ export function loadConfig(path: string): Config | null {
 }
 
 /** 오래된 세션 기록부터 밀어낸다 — 마지막에 쓴 것이 맨 뒤 */
-function trimSessions(sessions: Record<string, string[]>): Record<string, string[]> {
+function trimSessions(sessions: Record<string, SessionMemory>): Record<string, SessionMemory> {
   const keys = Object.keys(sessions)
   if (keys.length <= SESSION_KEEP) return sessions
   const keep = keys.slice(keys.length - SESSION_KEEP)
@@ -77,7 +86,7 @@ export function saveConfig(
     if (!opts.roomsFromServer) delete next.rooms
     delete next.sessions
   } else {
-    const sessions: Record<string, string[]> = { ...(disk.sessions ?? {}) }
+    const sessions: Record<string, SessionMemory> = { ...(disk.sessions ?? {}) }
     const mine = opts.sessionId ? cfg.sessions?.[opts.sessionId] : undefined
     if (opts.sessionId && mine) {
       delete sessions[opts.sessionId]
@@ -94,12 +103,19 @@ export function saveConfig(
   return next
 }
 
-/** 이 세션이 켤 때 받을 방 — 기억한 방, 없으면 참가한 방이 하나뿐일 때 그 방(명세 §5.1 · 5.2) */
+/** 이 세션이 켤 때 받을 방 — 기억한 방(지금도 참가 중인 것만), 없으면 참가한 방이 하나뿐일 때 그 방(명세 §5.1 · 5.2) */
 export function rememberedRooms(cfg: Config, sessionId: string): string[] {
   const bound = sessionId ? cfg.sessions?.[sessionId] : undefined
-  if (bound?.length) return bound.filter((r) => !cfg.rooms || r in cfg.rooms)
+  const rooms = Array.isArray(bound?.rooms) ? bound.rooms : []
+  if (rooms.length) return rooms.filter((r) => !cfg.rooms || r in cfg.rooms)
   const all = Object.keys(cfg.rooms ?? {})
   return all.length === 1 ? all : []
+}
+
+/** 이 Claude 세션이 마지막으로 연 서버 세션 — 다시 켤 때(--resume) 같은 세션으로 */
+export function rememberedSid(cfg: Config, sessionId: string): string | undefined {
+  const sid = sessionId ? cfg.sessions?.[sessionId]?.sid : undefined
+  return typeof sid === 'string' && /^ses_[0-9A-HJKMNP-TV-Z]{26}$/.test(sid) ? sid : undefined
 }
 
 /**

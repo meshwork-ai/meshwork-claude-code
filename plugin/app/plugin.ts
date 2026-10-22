@@ -133,6 +133,7 @@ export class Plugin {
     })
     client.on('me.changed', (d) => {
       this.lang = pickLang(d.lang ?? 'ko')
+      if (d.lang) this.link.save({ lang: d.lang })
     })
     client.on('org.notice', ({ notice }) => {
       this.orgNotice = { text: notice.text, endsAt: notice.endsAt }

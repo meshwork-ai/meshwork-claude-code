@@ -1018,7 +1018,13 @@ async function owner(p: Plugin, a: Args): Promise<ToolResult> {
     }
     case 'notice': {
       if (!a.text?.trim()) return fail('notice 에는 text(공지 내용)가 필요합니다')
-      const x = await c.call('room.notice', { room: r.id, text: a.text })
+      // 방장이 에이전트에게 시킨 공지 — 세션으로 보낸다(쓴 쪽 = 에이전트 · 그 방을 받는 세션만 — 명세 §10.5)
+      if (!session.held.includes(r.id)) {
+        return fail(
+          `이 세션은 '${r.name}' 방을 받지 않아 그 방에 공지할 수 없습니다 — 사용자가 원하면 /meshwork:room ${r.name}`,
+        )
+      }
+      const x = await session.call('room.notice', { room: r.id, text: a.text })
       return ok(`✓ '${r.name}' 방 공지를 보냈습니다 — 바로 ${x.sent}명 · 보관 ${x.queued}명`)
     }
     default:

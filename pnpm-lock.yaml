@@ -167,8 +167,8 @@ importers:
   .:
     devDependencies:
       '@meshwork-ai/config':
-        specifier: 0.1.0
-        version: 0.1.0(eslint@10.12.0)(prettier@3.9.10)(typescript@6.0.3)(vitest@5.0.5(@types/node@24.19.2)(vite@8.3.4(@types/node@24.19.2)(esbuild@0.28.2)))
+        specifier: 0.3.1
+        version: 0.3.1(eslint@10.12.0)(prettier@3.9.10)(typescript@6.0.3)(vitest@5.0.5(@types/node@24.19.2)(vite@8.3.4(@types/node@24.19.2)(esbuild@0.28.2)))
       '@types/node':
         specifier: 24.19.2
         version: 24.19.2
@@ -188,14 +188,14 @@ importers:
   plugin:
     dependencies:
       '@meshwork-ai/client-core':
-        specifier: 0.3.0
-        version: 0.3.0
+        specifier: 0.3.1
+        version: 0.3.1
       '@meshwork-ai/i18n':
-        specifier: 0.3.0
-        version: 0.3.0
+        specifier: 0.3.1
+        version: 0.3.1
       '@meshwork-ai/protocol':
-        specifier: 0.3.0
-        version: 0.3.0
+        specifier: 0.3.1
+        version: 0.3.1
       '@modelcontextprotocol/sdk':
         specifier: 1.32.1
         version: 1.32.1(zod@4.6.7)
@@ -461,12 +461,12 @@ packages:
   '@keyv/serialize@1.1.1':
     resolution: {integrity: sha512-dXn3FZhPv0US+7dtJsIi2R+c7qWYiReoEh5zUntWCf4oSpMNib8FDhSoed6m3QyZdx5hK7iLFkYk3rNxwt8vTA==}
 
-  '@meshwork-ai/client-core@0.3.0':
-    resolution: {integrity: sha512-XjQBTMDUHRHkAKJWAcS7qRMzsytuQrVDbbuontGuvoiUWNhz/cVDJmNTkESyzurVfx2/ekK092ZZU/YuXnJ2Xw==, tarball: https://npm.pkg.github.com/download/@meshwork-ai/client-core/0.3.0/2a9d299fe01a219be752ac061a4ad8d8c03509c4}
+  '@meshwork-ai/client-core@0.3.1':
+    resolution: {integrity: sha512-qdFbyovtZSSGM8JOsjuOdiNQftpLQ9HDCPJHOwZo8mNrKrNxz5rzATDDOFt1N2u/3BwwNlZIYtQ3nHizBXs29Q==, tarball: https://npm.pkg.github.com/download/@meshwork-ai/client-core/0.3.1/fef2b5bb1dd147d4f2b25b68bb29f15e71215587}
     engines: {node: '>=22'}
 
-  '@meshwork-ai/config@0.1.0':
-    resolution: {integrity: sha512-9f7ASBPIfHziz+FSuull24vUtOHlQT3uOXO6KqXCrHGi5zRCqTw+SEZf5V6lFJDxsY7Eb8huUCaWYKmzAqz/Tw==, tarball: https://npm.pkg.github.com/download/@meshwork-ai/config/0.1.0/f23fc90e2def5b1c7b3cac73da6dd17e1f520f60}
+  '@meshwork-ai/config@0.3.1':
+    resolution: {integrity: sha512-2CnCjGr5LTXeWhMHy6sWNqtD8sicovAZ+mH9pU0kPrG7i+V12u/pf4POdHNfl9uVU13l6GcxdhksTl8u6MwDHg==, tarball: https://npm.pkg.github.com/download/@meshwork-ai/config/0.3.1/d1dccb54a4337584ec3c013b0ea83b6366f41274}
     engines: {node: '>=24'}
     hasBin: true
     peerDependencies:
@@ -475,12 +475,12 @@ packages:
       typescript: ^6
       vitest: ^5
 
-  '@meshwork-ai/i18n@0.3.0':
-    resolution: {integrity: sha512-c238iNYox8apYdRIYbI8IcVYn6sL6PxGzHuqYN5ubU3ZdRBmvC3svlKJBWyd/Y6KuwrO5AB9okIurNEwP7NvjA==, tarball: https://npm.pkg.github.com/download/@meshwork-ai/i18n/0.3.0/984edf4fe3724a8222ee177b3d706ecaff232df1}
+  '@meshwork-ai/i18n@0.3.1':
+    resolution: {integrity: sha512-Oz9biup5askVKV9En8z514fIea4WRXTgqEBqlp+bz4+kNRuf6VBwoq14YoZEsT6OFZ5Tm48J2hRslVgSzQwDhQ==, tarball: https://npm.pkg.github.com/download/@meshwork-ai/i18n/0.3.1/acc02a1d3563ee328cbe7eecf46b0fe77c483e06}
     engines: {node: '>=22'}
 
-  '@meshwork-ai/protocol@0.3.0':
-    resolution: {integrity: sha512-1L6iTOKedj7UOo5eh3v+IkokvZYXSPVaAwUhrgIXGy+kwABoOYaaCDKLeH4nrzAAtul4kPKvTXuBmz34YUbAYg==, tarball: https://npm.pkg.github.com/download/@meshwork-ai/protocol/0.3.0/64b5178b64abf79f2919030e3c67016e25563f51}
+  '@meshwork-ai/protocol@0.3.1':
+    resolution: {integrity: sha512-V55hLfPXbnKT65ymJLWMGM6Eohd1fT9p3dRbAXHgsJX9Jl6r8Fuk5CjKpKSInYvII4NQl0QsiNSbQGbZy2YbgA==, tarball: https://npm.pkg.github.com/download/@meshwork-ai/protocol/0.3.1/3d58385a2fb210a68110f72a1edd711bd4f6a9f8}
     engines: {node: '>=22'}
 
   '@modelcontextprotocol/sdk@1.32.1':
@@ -1688,12 +1688,12 @@ snapshots:
 
   '@keyv/serialize@1.1.1': {}
 
-  '@meshwork-ai/client-core@0.3.0':
+  '@meshwork-ai/client-core@0.3.1':
     dependencies:
-      '@meshwork-ai/protocol': 0.3.0
+      '@meshwork-ai/protocol': 0.3.1
       zod: 4.6.7
 
-  '@meshwork-ai/config@0.1.0(eslint@10.12.0)(prettier@3.9.10)(typescript@6.0.3)(vitest@5.0.5(@types/node@24.19.2)(vite@8.3.4(@types/node@24.19.2)(esbuild@0.28.2)))':
+  '@meshwork-ai/config@0.3.1(eslint@10.12.0)(prettier@3.9.10)(typescript@6.0.3)(vitest@5.0.5(@types/node@24.19.2)(vite@8.3.4(@types/node@24.19.2)(esbuild@0.28.2)))':
     dependencies:
       '@eslint/js': 10.0.1(eslint@10.12.0)
       eslint: 10.12.0
@@ -1705,12 +1705,12 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@meshwork-ai/i18n@0.3.0':
+  '@meshwork-ai/i18n@0.3.1':
     dependencies:
-      '@meshwork-ai/protocol': 0.3.0
+      '@meshwork-ai/protocol': 0.3.1
       intl-messageformat: 12.1.3
 
-  '@meshwork-ai/protocol@0.3.0':
+  '@meshwork-ai/protocol@0.3.1':
     dependencies:
       zod: 4.6.7
 

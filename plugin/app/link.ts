@@ -31,6 +31,7 @@ import {
   loadConfig,
   normalizeServer,
   rememberedRooms,
+  rememberedSid,
   saveConfig,
 } from '../core/config'
 import type { Paths } from '../core/paths'
@@ -75,6 +76,12 @@ export interface LinkDeps {
 export type Wire = (client: MeshworkClient) => void
 
 const CLIENT = { name: CLIENT_NAME, version: PLUGIN_VERSION }
+
+/** 이 기기의 언어 · 시간대 — 사용자 설정이 비어 있을 때 채운다(명세 §4.6 — 앱과 같음) */
+export function osLocale(): { lang: string; tz: string } {
+  const o = Intl.DateTimeFormat().resolvedOptions()
+  return { lang: o.locale, tz: o.timeZone }
+}
 
 /** 기기가 밝히는 이름 · OS — 승인 화면에 보인다(64자까지 — HTTP API §2.2) */
 function deviceName(): string {
@@ -131,11 +138,14 @@ export class Link {
   async boot(waitMs = 1_500): Promise<Context | null> {
     if (!(await this.prepare())) return null
     const client = this.start()
-    const rooms = rememberedRooms(this.config(), this.deps.host.sessionId)
+    const cfg = this.config()
+    const rooms = rememberedRooms(cfg, this.deps.host.sessionId)
     this.watch = new AbortController()
     try {
       this.context = await loadContext(client, {
         rooms,
+        // 서버에 저장된 내 언어(지난 연결의 사본) — 아직 모르면 이 기기의 언어
+        lang: cfg.lang ?? osLocale().lang,
         cache: fileCache(this.deps.paths.cache),
         waitMs,
         signal: this.watch.signal,
@@ -200,8 +210,19 @@ export class Link {
       if (this.client !== client) return
       this.welcome = w
       this.state = { kind: 'open' }
+      // 언어 · 시간대가 비어 있으면 이 기기의 것으로 채운다 — 서버가 규약 언어 · 업무 시간 · 알림 문장에 쓴다(§4.6)
+      if (!w.me.lang || !w.me.tz) {
+        const os = osLocale()
+        void client
+          .call('me.update', {
+            ...(w.me.lang ? {} : { lang: os.lang }),
+            ...(w.me.tz ? {} : { tz: os.tz }),
+          })
+          .catch(() => undefined)
+      }
       this.save(
         {
+          lang: w.me.lang ?? osLocale().lang,
           orgName: w.org.name,
           rooms: Object.fromEntries(w.rooms.map((r) => [r.id, { name: r.name, myName: r.myName }])),
         },
@@ -222,25 +243,37 @@ export class Link {
     return client
   }
 
-  /** 세션을 연다 — 이 Claude 세션이 기억한 방(없으면 참가한 방이 하나일 때 그 방) */
+  /**
+   * 세션을 연다 — 이 Claude 세션이 기억한 서버 세션 · 방(없으면 참가한 방이 하나일 때 그 방).
+   * 같은 서버 세션으로 다시 열면 붙잡기(5분) 안에서는 받던 방을 조용히 이어받는다(§5.2 — 새 세션이면 「받지 못한 방」).
+   * 서버가 그 세션을 모르면(끝났음 · 다른 기기) 새로 연다
+   */
   openSession(rooms?: string[]): Promise<Session | null> {
     if (this.opening) return this.opening
     const client = this.client
     if (!client) return Promise.resolve(null)
-    const want = rooms ?? rememberedRooms(this.config(), this.deps.host.sessionId)
+    const cfg = this.config()
+    const want = rooms ?? rememberedRooms(cfg, this.deps.host.sessionId)
+    const sid = rooms ? undefined : rememberedSid(cfg, this.deps.host.sessionId)
     const name = this.deps.host.sessionName()
+    const base = {
+      ...(want.length ? { rooms: want } : {}),
+      dir: this.deps.host.workDir,
+      engine: 'claude' as const,
+      ...(name ? { name } : {}),
+    }
     this.opening = client
-      .openSession({
-        ...(want.length ? { rooms: want } : {}),
-        dir: this.deps.host.workDir,
-        engine: 'claude',
-        ...(name ? { name } : {}),
+      .openSession(sid ? { ...base, sid } : base)
+      .catch((e: unknown) => {
+        if (sid && e instanceof MeshworkError && e.code === 'session.unknown')
+          return client.openSession(base)
+        throw e
       })
       .then(
         (s) => {
           if (this.client !== client) return null
           this.session = s
-          if (s.held.length) this.remember(s.held)
+          this.remember(s.held)
           this.onSession?.(s)
           return s
         },
@@ -256,11 +289,13 @@ export class Link {
   /** 세션이 열렸을 때 — 받지 못한 방 알리기 등(app 이 단다) */
   onSession?: (s: Session) => void
 
-  /** 이 Claude 세션이 받는 방을 기억한다(`--resume` 하면 되찾음) */
+  /** 이 Claude 세션의 서버 세션 · 받는 방을 기억한다(`--resume` 하면 되찾음) */
   remember(held: string[]): void {
-    const sid = this.deps.host.sessionId
-    if (!sid) return
-    this.save({ sessions: { [sid]: held } })
+    const key = this.deps.host.sessionId
+    if (!key) return
+    this.save({
+      sessions: { [key]: { ...(this.session ? { sid: this.session.sid } : {}), rooms: held } },
+    })
   }
 
   /** 붙어 있고 세션이 열렸나 — 아니면 timeoutMs 까지 기다린다 */
