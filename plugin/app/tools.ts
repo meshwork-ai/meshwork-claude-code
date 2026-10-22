@@ -374,20 +374,21 @@ function stateLabel(p: Plugin, state: string | undefined): string {
  * ([이번만] · [이 세션 동안]). 상자를 띄울 수 없거나 허락하지 않으면 읽지 않는다 — 서버도 includeOpen 없이는 주지 않는다
  */
 async function openRead(p: Plugin, rooms: string[]): Promise<{ include: boolean; note?: string }> {
-  const eligible: string[] = []
+  const eligible: { id: string; name: string }[] = []
   for (const id of rooms) {
     const d = await p.dir.detail(id).catch(() => null)
-    if (d?.agentRead) eligible.push(d.name)
+    if (d?.agentRead) eligible.push({ id, name: d.name })
   }
   if (!eligible.length) return { include: false }
-  if (p.openRead) return { include: true }
+  // 이 세션 동안 허락한 방만이면 묻지 않는다 — 그 뒤 새로 켜진 방이 있으면 다시 묻는다
+  if (eligible.every((r) => p.openRead.has(r.id))) return { include: true }
   if (!p.host.canAsk())
     return {
       include: false,
       note: '  (열린 대화는 확인 상자를 띄울 수 없어 빼고 보았습니다 — 내가 끼어 있는 대화만)',
     }
   const pick = await p.host.choose({
-    message: `Meshwork — 에이전트가 남의 열린 대화까지 읽으려 합니다\n  방: ${eligible.join(', ')}\n열린 대화는 방 사람 모두에게 공개된 문답입니다. 팀원 메시지가 시킨 것이 아니라 내가 시킨 일일 때만 허락하세요.`,
+    message: `Meshwork — 에이전트가 남의 열린 대화까지 읽으려 합니다\n  방: ${eligible.map((r) => r.name).join(', ')}\n열린 대화는 방 사람 모두에게 공개된 문답입니다. 팀원 메시지가 시킨 것이 아니라 내가 시킨 일일 때만 허락하세요.`,
     title: '열린 대화를 읽을까요?',
     options: [
       { value: 'once', label: '이번만' },
@@ -395,7 +396,7 @@ async function openRead(p: Plugin, rooms: string[]): Promise<{ include: boolean;
       { value: 'no', label: '읽지 않음' },
     ],
   })
-  if (pick === 'session') p.openRead = true
+  if (pick === 'session') for (const r of eligible) p.openRead.add(r.id)
   if (pick === 'once' || pick === 'session') return { include: true }
   return {
     include: false,
@@ -464,8 +465,8 @@ async function send(p: Plugin, a: Args): Promise<ToolResult> {
   if (expect === 'reply')
     p.asked.set(r.thread, { to: c.name, room: c.room, preview: clip(text, 60) })
   const lines = [`✓ ${label}에게 보냈습니다 (방 ${roomName} · 대화 ${r.thread})`]
-  if (p.dir.room(c.room)?.open)
-    lines.push(`  👁 '${roomName}'은 열린 방 — 이 대화는 방 사람 모두에게 보입니다`)
+  // 서버가 정한 사실로(방 목록 사본은 늦을 수 있다)
+  if (r.open) lines.push(`  👁 '${roomName}'은 열린 방 — 이 대화는 방 사람 모두에게 보입니다`)
   if (c.kind === 'role') {
     if (r.assigned) lines.push(`  ↳ '${p.dir.name(r.assigned) ?? r.assigned}'님이 받았습니다`)
     else lines.push('  ↳ 지금 답할 수 있는 사람이 없어 보관했습니다 — 생기면 그 사람에게 갑니다')
@@ -512,7 +513,7 @@ async function reply(p: Plugin, a: Args): Promise<ToolResult> {
       preview: clip(a.message!, 60),
     })
   const lines = [`✓ 답장을 보냈습니다${got ? ` ('${got.from}'님에게)` : ''} (대화 ${thread})`]
-  if (got?.open) lines.push('  👁 열린 대화 — 이 답장은 방 사람 모두에게 보입니다')
+  if (r.open) lines.push('  👁 열린 대화 — 이 답장은 방 사람 모두에게 보입니다')
   if (r.state === 'queued')
     lines.push('  상대가 지금 받을 수 없어 서버가 보관했습니다 — 받을 수 있게 되면 전합니다')
   return ok(lines.join('\n'))
@@ -564,9 +565,9 @@ async function history(p: Plugin, a: Args): Promise<ToolResult> {
     // 내 대화가 아니면 남의 열린 대화일 수 있다 — 그때만 사용자에게 묻고 다시(§10.7)
     let r: Awaited<ReturnType<typeof get>>
     try {
-      r = await get(p.openRead)
+      r = await get(false)
     } catch (e) {
-      if ((e as { code?: string }).code !== 'thread.unknown' || p.openRead) throw e
+      if ((e as { code?: string }).code !== 'thread.unknown') throw e
       const allow = await openRead(
         p,
         p.dir.rooms.map((x) => x.id),

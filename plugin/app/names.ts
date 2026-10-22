@@ -76,10 +76,10 @@ export class Directory {
   roomName = (id: string): string | undefined =>
     this.rooms.find((r) => r.id === id)?.name ?? this.known.get(id)
 
-  /** 보이는 방 이름 — 열린 방이면 ` [열림]`(상태줄 · status) */
-  roomTitle = (id: string): string | undefined => {
+  /** 보이는 방 이름 — 열린 방이면 표시를 붙인다(status 는 ` [열림]` · 상태 파일은 `(열림)`) */
+  roomTitle = (id: string, mark = ' [열림]'): string | undefined => {
     const r = this.rooms.find((x) => x.id === id)
-    return r ? `${r.name}${r.open ? ' [열림]' : ''}` : this.known.get(id)
+    return r ? `${r.name}${r.open ? mark : ''}` : this.known.get(id)
   }
 
   /** 방 이름 · id → 방 */

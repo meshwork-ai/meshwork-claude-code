@@ -97,6 +97,14 @@ export interface SessionState {
   notice: string | null
 }
 
+/**
+ * 상태 파일의 글 칸 — 상태줄은 의존성 없이 sed 로 읽는다. 따옴표 · 역슬래시 · 쉼표 · 줄바꿈 · 대괄호를 걷는다(배열 끝 `]` 로
+ * 잘못 잘리지 않게 — 방 이름 · 공지)
+ */
+export function stateText(t: string): string {
+  return t.replace(/["\\,\r\n[\]]/g, ' ')
+}
+
 export function writeState(home: string, s: SessionState): void {
   // 팀 세션이 아니거나 세션을 알아볼 수 없으면 상태줄이 짝을 찾을 수 없다 — 파일을 만들지 않는다
   if (!s.sessionId || !s.team) return

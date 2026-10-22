@@ -20,6 +20,7 @@ import {
   saveConfig,
 } from '../core/config'
 import { mergeRoutes } from '../core/routes'
+import { stateText } from '../core/state'
 import { defang, type Message, tagMessage } from '../core/tags'
 import { tempHome } from './harness'
 
@@ -304,6 +305,11 @@ describe('질문 배분 합치기(team-relay 에서 가져올 때)', () => {
 })
 
 describe('상태 파일 — 상태줄이 읽는 모양', () => {
+  it('글 칸은 sed 가 잘못 자르지 않게 — 따옴표 · 역슬래시 · 쉼표 · 줄바꿈 · 대괄호를 걷는다', () => {
+    expect(stateText('web3 [열림]')).toBe('web3  열림 ')
+    expect(stateText('a"b\\c,d\ne')).toBe('a b c d e')
+  })
+
   it('statusline.sh 가 상태 파일을 읽어 한 줄을 만든다', async () => {
     const { spawnSync } = await import('node:child_process')
     const { PLUGIN_DIR } = await import('./harness')
@@ -351,6 +357,11 @@ describe('상태 파일 — 상태줄이 읽는 모양', () => {
       '[meshwork 🟢 web3] · 규약 바뀜(새 세션) · 📢 오늘 22시 점검',
     )
     expect(state({ updatedAt: Date.now() - 120_000 })).toBe('[meshwork ✗ 플러그인 미동작]')
+    // 열린 방 표시가 앞에 있어도 방 수를 바로 센다(대괄호는 배열 끝과 헷갈려 쓰지 않는다 — 5-a 2번 끝 검토)
+    expect(state({ held: ['web3(열림)', 'ops'] })).toBe('[meshwork 🟢 web3(열림) +1]')
+    expect(state({ held: [], empty: ['web3(열림)', 'ops'] })).toBe(
+      '[meshwork ⚠️ 받는 방 없음 · 빈 방 2]',
+    )
     expect(readFileSync(join(dir, 'state-s1.json'), 'utf8')).toContain('"team": true')
   })
 })

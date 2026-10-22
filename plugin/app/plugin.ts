@@ -13,7 +13,7 @@ import { type Lang, pickLang } from '@meshwork-ai/i18n'
 import type { EvData } from '@meshwork-ai/protocol'
 
 import type { Paths } from '../core/paths'
-import { type SessionState, sweepStaleStates, writeState } from '../core/state'
+import { type SessionState, stateText, sweepStaleStates, writeState } from '../core/state'
 import { type Message, tagMessage } from '../core/tags'
 import type { Host } from '../host/types'
 import { type Link, type LinkState, type MyOrg } from './link'
@@ -29,7 +29,7 @@ export class Plugin {
   readonly dir: Directory
   lang: Lang = 'ko'
   /** 받은 질문 — 대화 id → 보낸 사람 · 방 (가로채기 판단) */
-  readonly received = new Map<string, { from: string; room?: string; open?: boolean }>()
+  readonly received = new Map<string, { from: string; room?: string }>()
   /** 이 세션에서 답한 대화 */
   readonly repliedHere = new Set<string>()
   /** 다른 곳(앱 · 다른 기기)에서 이미 답한 대화 — reply 가 거절한다 */
@@ -45,8 +45,8 @@ export class Plugin {
   heldElsewhere: string[] = []
   /** 퇴근 중 */
   off = false
-  /** 사람이 「이 세션 동안」 남의 열린 대화 읽기를 허락했나(명세 §10.7 — history 가 묻는다) */
-  openRead = false
+  /** 사람이 「이 세션 동안」 남의 열린 대화 읽기를 허락한 방(명세 §10.7 — history 가 묻는다 · 새로 켜진 방은 다시 묻는다) */
+  readonly openRead = new Set<string>()
   orgNotice: { text: string; endsAt: string } | null = null
   serviceNotices: EvData<'service.notice'>['notices'] = []
   private sentName?: string
@@ -194,11 +194,7 @@ export class Plugin {
     const needsAnswer = m.kind === 'question' || (m.kind === 'reply' && m.expect === 'reply')
     if (needsAnswer && !this.autoReply) tagged.meta.autoreply = 'off'
     if (m.thread && m.from && (needsAnswer || m.kind === 'agree')) {
-      this.received.set(m.thread, {
-        from: m.from.name,
-        ...(m.room ? { room: m.room } : {}),
-        ...(m.open ? { open: true } : {}),
-      })
+      this.received.set(m.thread, { from: m.from.name, ...(m.room ? { room: m.room } : {}) })
       this.answeredElsewhere.delete(m.thread)
       this.repliedHere.delete(m.thread)
     }
@@ -391,8 +387,8 @@ export class Plugin {
   }
 
   exportState(): void {
-    // 상태줄은 의존성 없이 sed 로 읽는다 — 글 칸에서 따옴표 · 역슬래시 · 쉼표 · 줄바꿈을 걷는다(잘못 잘리지 않게)
-    const plain = (t: string) => t.replace(/["\\,\r\n]/g, ' ')
+    // 상태줄은 의존성 없이 sed 로 읽는다 — 글 칸을 걷어서(stateText) · 열린 방은 「(열림)」(대괄호는 배열 끝과 헷갈림)
+    const plain = stateText
     const s = this.link.state
     const held = this.link.session?.held ?? []
     const joined = this.dir.rooms.map((r) => r.id)
@@ -403,10 +399,10 @@ export class Plugin {
       team: this.host.isTeam,
       link: this.linkKind(),
       stopped: s.kind === 'stopped' ? (s.code ?? s.reason) : null,
-      held: held.map((r) => plain(this.dir.roomTitle(r) ?? r)),
+      held: held.map((r) => plain(this.dir.roomTitle(r, '(열림)') ?? r)),
       empty: joined
         .filter((r) => !held.includes(r) && !this.heldElsewhere.includes(r))
-        .map((r) => plain(this.dir.roomTitle(r) ?? r)),
+        .map((r) => plain(this.dir.roomTitle(r, '(열림)') ?? r)),
       queued: this.queued,
       off: this.off,
       contextChanged: this.link.contextChanged,
