@@ -1,6 +1,6 @@
 {
   "mcpServers": {
-    "team-relay": {
+    "meshwork": {
       "command": "sh",
       "args": ["${CLAUDE_PLUGIN_ROOT}/plugin/run.sh"]
     }

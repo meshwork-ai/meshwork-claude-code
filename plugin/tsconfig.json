@@ -6,5 +6,5 @@
     "moduleResolution": "Bundler",
     "verbatimModuleSyntax": true
   },
-  "include": ["*.ts", "core", "host", "test", "types"]
+  "include": ["*.ts", "app", "core", "host", "test"]
 }

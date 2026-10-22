@@ -1,19 +1,15 @@
 ---
 name: status
-description: 팀 연결 상태(이 세션 담당 방·방별 내 라벨·온라인 팀원·자동답장 토글)를 보여준다. 자동답장 전환 — /team-relay:status auto-reply off|on
+description: Meshwork 연결 상태(서버 · 조직 · 이 세션이 받는 방 · 참가한 방 · 방 사람들 · 자동 답장)를 보인다. 자동 답장 바꾸기 — /meshwork:status auto-reply off|on
 argument-hint: '[auto-reply on|off]'
 ---
 
-사용자가 `/team-relay:status` 를 실행했다.
+사용자가 `/meshwork:status` 를 실행했다.
 
-1. 인자가 없으면 `team_status` 도구를 인자 없이 호출해 결과를 그대로 보여준다.
-2. 인자가 `auto-reply off` 또는 `auto-reply on` 이면 `team_status` 를
-   `{ auto_reply: "off" | "on" }` 으로 호출해 토글을 전환하고, 바뀐 상태를 확인시킨다.
-   off 는 "팀 질문에 답하기 전에 초안을 나에게 보여달라"는 뜻이라고 설명한다.
-3. "연결돼 있지 않습니다" 가 나오면 `/team-relay:join` 안내 또는 중계 서버 상태 확인을 권한다.
-4. 내 이름은 **방마다 다를 수 있다**(신원은 토큰 하나, 이름은 방별 라벨) — 출력의 `방(라벨)`
-   표기를 그대로 전한다. "이 세션 담당"이 비어 있으면 이 세션은 받는 방이 없어 팀 기능(보내기·
-   답장 등)을 쓸 수 없다 — `/team-relay:room <방>` 으로 받을 방을 가져오라고 안내한다(그 방을 받던
-   다른 세션은 그 방을 놓는다).
-5. "이 세션에서는 team-relay 를 쓸 수 없습니다" 가 나오면 claude-team 으로 켠 세션이 아니라는 뜻이다 —
-   그 세션에서 다시 실행하라고 안내한다.
+1. 인자가 없으면 `status` 도구를 인자 없이 불러 결과를 그대로 보인다.
+2. 인자가 `auto-reply off` 또는 `auto-reply on` 이면 `status` 를 `{ auto_reply: "off" | "on" }` 으로 불러 바꾸고 바뀐 상태를 보인다.
+   off 는 "팀 질문에 답하기 전에 초안을 나에게 보여 달라" 는 뜻이라고 설명한다.
+3. 내 이름은 **방마다 다를 수 있다** — 결과의 `방 (이름)` 표기를 그대로 전한다. "이 세션이 받는 방" 이 비어 있으면 이 세션은 팀 메시지를
+   받지도 보내지도 못한다 — `/meshwork:room <방>` 을 권한다(그 방을 받던 다른 세션은 받지 못하게 된다).
+4. "로그인이 필요합니다" · "조직을 골라야 합니다" 면 그 안내(`/meshwork:login` · `/meshwork:login org`)를 그대로 전한다.
+5. "이 세션에서는 Meshwork 를 쓸 수 없습니다" 면 meshwork-claude 로 켠 세션이 아니라는 뜻이다 — 그 세션에서 다시 실행하라고 안내한다.

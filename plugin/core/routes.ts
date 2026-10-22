@@ -1,12 +1,12 @@
 /**
- * 라우팅 등록표 — "이런 질문이 오면 이 머신의 저 세션에 위임하라"는 명시 규칙 (3단 위임의 1단).
+ * 질문 배분 — "이런 질문이 오면 이 기기의 저 세션에 위임하라" 는 명시 규칙(규약 6 의 ①).
  *
- * 전부 순수 함수다. 파일 입출력도 네트워크도 없어서 **직접 import 해 단위 테스트할 수 있다**.
- * 방 바인딩은 키워드보다 우선한다 (v1 §6.5).
+ * 전부 순수 함수다. 파일 입출력도 네트워크도 없어서 **직접 import 해 단위 시험할 수 있다**.
+ * 방 등록은 낱말보다 먼저다. 방은 이름으로 적는다(꼬리표의 room 이 이름이므로).
  */
 import type { RouteEntry } from './types'
 
-/** 등록표 한 줄의 사람이 읽는 라벨 */
+/** 한 줄의 사람이 읽는 꼴 */
 export function labelOf(r: RouteEntry): string {
   return r.room ? `[방 ${r.room}] → ${r.session}` : `"${r.keywords}" → ${r.session}`
 }
@@ -52,8 +52,23 @@ export function removeRoute(
 /** 목록 렌더 — 비어 있으면 null (호출부가 안내 문구를 고른다) */
 export function renderRoutes(routes: RouteEntry[]): string | null {
   if (routes.length === 0) return null
-  return [
-    '라우팅 등록표 (방 바인딩이 키워드보다 우선):',
-    ...routes.map((r) => `  ${labelOf(r)}`),
-  ].join('\n')
+  return ['질문 배분 (방 등록이 낱말보다 먼저):', ...routes.map((r) => `  ${labelOf(r)}`)].join(
+    '\n',
+  )
+}
+
+/**
+ * 가져온 규칙을 합친다(team-relay → Meshwork, 처음 한 번 — 명세 D.3 5). 이미 있는 낱말 · 방은 지금 것을 둔다
+ */
+export function mergeRoutes(current: RouteEntry[], imported: RouteEntry[]): RouteEntry[] {
+  const out = current.slice()
+  for (const r of imported) {
+    if (out.some((x) => (r.keywords && x.keywords === r.keywords) || (r.room && x.room === r.room)))
+      continue
+    const entry: RouteEntry = { session: r.session }
+    if (r.keywords) entry.keywords = r.keywords
+    if (r.room) entry.room = r.room
+    out.push(entry)
+  }
+  return out
 }

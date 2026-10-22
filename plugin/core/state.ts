@@ -1,80 +1,31 @@
 /**
- * 상태 파일 — statusline 처럼 **플러그인 밖에서** 상태를 읽어가는 수단.
+ * 상태 파일 — 상태줄처럼 **플러그인 밖에서** 상태를 읽어 가는 수단.
  *
- * 왜 파일인가: `team_doctor` 는 플러그인 프로세스 안에 있어서, 프로세스가 죽으면 진단도
- * 같이 죽는다(2026-09-29 실사례). 상태를 파일로 내보내면 **플러그인이 떠 있지 않아도**
- * 바깥에서 그 사실을 알 수 있다 — `updatedAt` 이 낡은 것이 곧 "안 돌고 있다"는 신호다.
- *
- * 쓰기는 config.json 과 같은 규칙(임시 파일 → rename, 0600)을 따른다. 여러 세션이 같은
- * 파일을 쓰므로 반쪽 파일이 남아선 안 된다.
+ * 왜 파일인가: doctor 는 플러그인 프로세스 안에 있어서 프로세스가 죽으면 진단도 같이 죽는다(team-relay 2026-09-29 실사례).
+ * 상태를 파일로 내보내면 플러그인이 떠 있지 않아도 바깥에서 그 사실을 안다 — `updatedAt` 이 낡은 것이 곧 신호다.
+ * 쓰기는 config.json 과 같은 규칙(임시 파일 → rename, 0600) — 여러 세션이 같은 폴더에 쓴다.
  */
 import {
   chmodSync,
   mkdirSync,
-  readFileSync,
   readdirSync,
+  readFileSync,
   renameSync,
   statSync,
   unlinkSync,
   writeFileSync,
 } from 'node:fs'
-import { dirname, join } from 'node:path'
-import { CONFIG_PATH } from './config'
-
-const STATE_DIR = dirname(CONFIG_PATH)
+import { join } from 'node:path'
 
 /**
- * 상태 파일은 **세션마다 하나**다.
+ * 상태 파일은 **세션마다 하나**다 — 한 기기에서 여러 세션이 돌고 받는 방이 다르다.
  *
- * 한 머신에서 여러 세션이 동시에 돌고 각자 담당 방이 다르다. 파일이 하나면 마지막에 쓴
- * 세션이 앞선 세션을 덮어써서, 상태줄이 **남의 세션 상태**를 보여준다. 그리고 팀 채널을
- * 안 쓰는 세션(평범한 `claude`)에서도 그 파일이 읽혀 상태줄이 뜬다.
- *
- * ⚠️ **이 이름은 세션의 진짜 id 가 아닐 수 있다.**
- * `CLAUDE_CODE_SESSION_ID` 는 MCP 서버가 **기동하는 시점**의 값인데, `claude --resume` 은
- * 서버를 먼저 띄우고 **그 뒤에** 이어받을 대화를 고른다. 그 순간 세션 id 가 복원된 대화의
- * 것으로 바뀌지만, **이미 뜬 서버의 환경변수는 바뀌지 않는다.** 다시 읽어도 소용없다 —
- * 프로세스 환경변수는 나중에 안 바뀐다. 즉 **플러그인은 자기 세션의 진짜 id 를 알 수 없다.**
- *
- * (실사례: 전사는 0e86d25f 인데 서버는 fbc4f84e 로 기동 → 상태줄이 자기 파일을 못 찾아
- *  "플러그인 미동작" 을 띄웠다. 메시지 송수신은 내내 정상이었다.)
- *
- * 그래서 맞추려 들지 않고 **statusline 쪽에서 받아낸다** — 살아 있는 게이트웨이 파일이
- * 하나뿐이면 그게 내 것이다. 둘 이상이면 고르지 않는다.
+ * ⚠️ 이 이름은 세션의 진짜 id 가 아닐 수 있다. `CLAUDE_CODE_SESSION_ID` 는 MCP 서버가 **뜨는 시점**의 값인데,
+ * `claude --resume` 은 서버를 먼저 띄우고 그 뒤에 이어 갈 대화를 고른다(연결 계약 §4.2). 그래서 상태줄은 세션 id 로
+ * 못 찾으면 부모 PID(`ppid`)로 짝을 찾는다(team-relay 0.7.6 방식).
  */
-export function statePath(sessionId: string): string {
-  return join(STATE_DIR, `state-${sessionId.replace(/[^A-Za-z0-9_-]/g, '')}.json`)
-}
-
-/**
- * 끝난 세션의 상태 파일 청소.
- *
- * 1시간이다(전에는 24시간). 상태 파일은 **쓰는 쪽이 살아 있는 동안만** 뜻이 있다 —
- * 30초마다 갱신되므로 1시간이 지난 파일은 그 세션이 끝났다는 뜻이고, 남겨 둬야 할 이유가
- * 없다. 24시간이면 하루치 죽은 파일이 쌓여, "지금 어느 게 살아 있나" 를 볼 때 사람을
- * 헷갈리게 한다 (실사례: 창 하나뿐인데 파일이 4개였고 그중 3개가 시체였다).
- */
-export function sweepStaleStates(maxAgeMs = 60 * 60 * 1000, now = Date.now()): void {
-  try {
-    for (const f of readdirSync(STATE_DIR)) {
-      if (!/^state-.*\.json$/.test(f)) continue
-      const full = join(STATE_DIR, f)
-      if (now - statSync(full).mtimeMs > maxAgeMs) unlinkSync(full)
-    }
-    // 세션 이름 파일 — 바뀔 때만 쓰이므로 나이로는 못 가린다. 그 창(claude 프로세스)이 끝났으면 지운다
-    for (const f of readdirSync(STATE_DIR)) {
-      const m = /^name-(\d+)$/.exec(f)
-      if (m && !alive(Number(m[1]))) unlinkSync(join(STATE_DIR, f))
-    }
-    // v0.7.0 의 단일 파일 잔재 — 남아 있으면 상태줄이 엉뚱한 값을 읽는다
-    try {
-      unlinkSync(join(STATE_DIR, 'state.json'))
-    } catch {
-      /* 없으면 그만 */
-    }
-  } catch {
-    /* 청소 실패는 무해하다 */
-  }
+export function statePath(home: string, sessionId: string): string {
+  return join(home, `state-${sessionId.replace(/[^A-Za-z0-9_-]/g, '')}.json`)
 }
 
 function alive(pid: number): boolean {
@@ -87,23 +38,30 @@ function alive(pid: number): boolean {
 }
 
 /**
- * 세션 이름 — `/rename`·`--name` 으로 붙인 이름(없으면 Claude Code 가 지은 제목).
- *
- * 플러그인(MCP 서버)에는 이 값이 오지 않는다. 환경변수에도 없다. **상태줄만** 받는다
- * (statusline 입력 JSON 의 session_name). 그래서 상태줄 스크립트가 바뀔 때마다 파일로 적어 두고
- * 플러그인이 읽는다. 열쇠는 세션 id 가 아니라 **부모 PID** 다 — 세션 id 는 어긋날 수 있지만
- * (statePath 머리말) 상태줄과 플러그인의 부모는 같은 claude 프로세스다.
- *
- * 상태줄을 쓰지 않는 사람에게는 이름이 없다 — 콘솔은 세션 id 앞자리와 작업 폴더로 보여준다.
+ * 끝난 세션의 상태 파일 청소 — 30초마다 고쳐 쓰므로 1시간 지난 파일은 그 세션이 끝났다는 뜻이다.
+ * 세션 이름 파일은 바뀔 때만 쓰여 나이로는 못 가린다 — 그 창(claude 프로세스)이 끝났으면 지운다
  */
-export function namePath(ppid = process.ppid): string {
-  return join(STATE_DIR, `name-${ppid}`)
+export function sweepStaleStates(home: string, maxAgeMs = 60 * 60 * 1000, now = Date.now()): void {
+  try {
+    for (const f of readdirSync(home)) {
+      const full = join(home, f)
+      if (/^state-.*\.json$/.test(f) && now - statSync(full).mtimeMs > maxAgeMs) unlinkSync(full)
+      const m = f.match(/^name-(\d+)$/)
+      if (m && !alive(Number(m[1]))) unlinkSync(full)
+    }
+  } catch {
+    /* 청소 실패는 무해하다 */
+  }
 }
 
-export function readSessionName(ppid = process.ppid): string | undefined {
+/**
+ * 세션 이름 — `/rename` · `--name` 으로 붙인 이름. 플러그인(MCP 서버)에는 오지 않고 **상태줄만** 받는다
+ * (입력 JSON 의 session_name). 상태줄이 `name-<PPID>` 로 적어 두고 플러그인이 읽는다 — 둘의 부모가 같은 claude 다
+ */
+export function readSessionName(home: string, ppid = process.ppid): string | undefined {
   try {
-    // 상태줄 스크립트가 적은 세션 이름에서 제어 문자를 지운다 — 일부러 제어 문자 범위를 쓴다
-    const t = readFileSync(namePath(ppid), 'utf8')
+    const t = readFileSync(join(home, `name-${ppid}`), 'utf8')
+      // 상태줄이 적은 값에서 제어 문자를 지운다 — 일부러 제어 문자 범위를 쓴다
       // eslint-disable-next-line no-control-regex
       .replace(/[\u0000-\u001f\u007f]/g, '')
       .trim()
@@ -117,42 +75,34 @@ export interface SessionState {
   /** 마지막 갱신 시각 — 이 값이 낡으면 플러그인이 죽은 것이다 */
   updatedAt: number
   sessionId: string
-  /**
-   * 나를 띄운 Claude Code 프로세스의 PID.
-   *
-   * **sessionId 와 달리 이 값은 거짓이 될 수 없다.** 세션 id 는 MCP 가 뜬 뒤에 바뀔 수
-   * 있지만(아래 statePath 머리말), 부모 PID 는 그 창이 사는 동안 변하지 않는다. 그리고
-   * statusline 은 **바로 그 claude 가 직접 띄우므로** `$PPID` 가 같은 값이다(실측:
-   * 창 10개 전부 상태줄의 직속 부모가 claude 였고, MCP 와 1:1 로 맞물렸다).
-   *
-   * 그래서 세션 id 가 어긋나도 이 값으로 서로를 정확히 찾는다.
-   */
+  /** 나를 띄운 Claude Code 프로세스의 PID — 세션 id 와 달리 창이 사는 동안 바뀌지 않는다(상태줄의 `$PPID`) */
   ppid: number
-  /** 중계 서버 소켓이 살아 있는가 */
-  connected: boolean
-  /** 이 세션이 수신을 맡는가 (claude-team alias) */
-  gateway: boolean
-  /** 이 세션이 담당 중인 방 */
+  /** 팀 세션인가(`meshwork-claude`) */
+  team: boolean
+  /** 로그인 · 연결 — `login`(로그인 필요) · `org`(조직 고르기) · `connecting` · `open` · `offline`(다시 붙는 중) · `stopped` */
+  link: 'login' | 'org' | 'connecting' | 'open' | 'offline' | 'stopped'
+  /** 다시 붙지 않는 사유 — `outdated` · `revoked` · `removed` · `rejected` */
+  stopped: string | null
+  /** 이 세션이 받는 방 이름 */
   held: string[]
-  /** 소속 방 → 그 방에서의 내 라벨 */
-  rooms: Record<string, string>
-  /** 소속이지만 **아무 세션도 받고 있지 않은** 방 */
+  /** 참가했지만 **아무 세션도 받지 않는** 방 이름 */
   empty: string[]
   /** 나를 기다리는 보관 메시지 수 */
   queued: number
-  away: boolean
-  /** 마지막 치명 사유 — plugin_outdated · auth_failed · revoked 등 */
-  lastError: string | null
+  /** 퇴근 중 */
+  off: boolean
+  /** 세션을 켠 뒤 규약 · 방 메모리가 바뀜 — 새 세션부터 반영(명세 §12) */
+  contextChanged: boolean
+  /** 서비스 · 조직 공지 한 줄(세션에는 넣지 않는다 — 명세 §4.7 · §10.5) */
+  notice: string | null
 }
 
-export function writeState(s: SessionState): void {
-  if (!s.sessionId) return // 세션을 식별할 수 없으면 상태줄이 매칭할 수도 없다
-  // 수신을 맡지 않는 세션(평범한 `claude`)은 상태줄을 차지하지 않는다. 파일 자체를 만들지
-  // 않아 쌓이지도 않는다 — 스크립트의 gateway 검사는 그 다음 방어선이다.
-  if (!s.gateway) return
+export function writeState(home: string, s: SessionState): void {
+  // 팀 세션이 아니거나 세션을 알아볼 수 없으면 상태줄이 짝을 찾을 수 없다 — 파일을 만들지 않는다
+  if (!s.sessionId || !s.team) return
   try {
-    const path = statePath(s.sessionId)
-    mkdirSync(STATE_DIR, { recursive: true })
+    const path = statePath(home, s.sessionId)
+    mkdirSync(home, { recursive: true, mode: 0o700 })
     const tmp = `${path}.${process.pid}.tmp`
     writeFileSync(tmp, JSON.stringify(s, null, 2), { mode: 0o600 })
     renameSync(tmp, path)

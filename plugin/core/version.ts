@@ -1,11 +1,13 @@
-/** 버전 상수 — 와이어 협상과 진단에 쓰인다 */
+/** 버전 · 클라이언트 이름 — 서버의 최소 버전 검사(명세 §4.1)와 진단에 쓰인다 */
 
-/**
- * 와이어 프로토콜 버전 — 서버의 MIN_PROTO 미만이면 plugin_outdated 로 거절된다 (v1 §2.1).
- * 3: 답장을 reply 프레임(thread 만)으로 보낸다 — 서버가 welcome.v ≥ 3 일 때만 쓴다.
- * 4: 방 메모리 (welcome.memory · memory_* 프레임) — 서버가 welcome.v ≥ 4 일 때만 쓴다.
- * 5: 세션 정보 (hello.dir · hello.name · session_info) — 서버가 welcome.v ≥ 5 일 때만 session_info 를 보낸다.
- */
-export const PROTO = 5
-/** 플러그인 패키지 버전 — hello/join 에 동봉 (서버 로그·doctor 진단용) */
-export const PLUGIN_VERSION = '0.10.2'
+/** 플러그인 판 — `hello.client.version` · `Meshwork-Client` 헤더 · doctor (세 곳을 check-version.ts 가 맞춘다) */
+export const PLUGIN_VERSION = '0.1.0'
+
+/** `hello.client.name` — 운영자가 최소 버전을 정하는 이름(운영 콘솔 「클라이언트」) */
+export const CLIENT_NAME = 'meshwork-plugin'
+
+/** 기기 코드 로그인의 client_id — 서버가 이것으로 기기 종류를 `plugin` 으로 정한다(명세 §3.2) */
+export const CLIENT_ID = 'meshwork-plugin' as const
+
+/** 이 플러그인이 도는 가장 낮은 Node 주 버전 — 내장 WebSocket(3단계 ①) · esbuild target 과 같게 */
+export const MIN_NODE = 22

@@ -187,16 +187,19 @@ importers:
 
   plugin:
     dependencies:
+      '@meshwork-ai/client-core':
+        specifier: 0.3.0
+        version: 0.3.0
+      '@meshwork-ai/i18n':
+        specifier: 0.3.0
+        version: 0.3.0
+      '@meshwork-ai/protocol':
+        specifier: 0.3.0
+        version: 0.3.0
       '@modelcontextprotocol/sdk':
         specifier: 1.32.1
         version: 1.32.1(zod@4.6.7)
-      ws:
-        specifier: 8.22.0
-        version: 8.22.0
     devDependencies:
-      '@types/ws':
-        specifier: 8.18.2
-        version: 8.18.2
       esbuild:
         specifier: 0.28.2
         version: 0.28.2
@@ -404,6 +407,15 @@ packages:
     resolution: {integrity: sha512-IkO+/KEUvwbVpiURZg+P7zF74z5Jxe0UgJxVni+RtoHQ6IZieXaO02kmadomap/q+l6bc/jdPGGqTjhuZnuz1Q==}
     engines: {node: ^20.19.0 || ^22.13.0 || >=24}
 
+  '@formatjs/fast-memoize@3.1.7':
+    resolution: {integrity: sha512-zXfhLpvA6T7+efdt9JLbBwZ00tT7NsBMDVnDu8rpHeNNv8KfRZAMo2gkG0k9lK/Nzc//3kJ9pImsfuJxk3KhUA==}
+
+  '@formatjs/icu-messageformat-parser@3.5.21':
+    resolution: {integrity: sha512-Vnl7IOSyMRaP4Pjv48etkT2nlcIwzh4QWIa3hewzGlZZPBbft+TbMir4MijpDViOLN/1hvkGC10oYMuilsG+fw==}
+
+  '@formatjs/icu-skeleton-parser@2.1.12':
+    resolution: {integrity: sha512-ca7tZMLpfHX3sUD7hP6gE/qr6Iq89EDd3ZLeRhbsB7r0UD55DGJq+tmFLzrGrnx5StahUevQmQQVtbDRHsfDHA==}
+
   '@hono/node-server@2.1.5':
     resolution: {integrity: sha512-MgP/I06GdvsilDspMk/qmRzpk8LOUStP6jFAbSRi40W09DhoyUn+Mj7eyKICPqeYKybOjVFLVIAQzvu1bfIa7Q==}
     engines: {node: '>=20'}
@@ -449,6 +461,10 @@ packages:
   '@keyv/serialize@1.1.1':
     resolution: {integrity: sha512-dXn3FZhPv0US+7dtJsIi2R+c7qWYiReoEh5zUntWCf4oSpMNib8FDhSoed6m3QyZdx5hK7iLFkYk3rNxwt8vTA==}
 
+  '@meshwork-ai/client-core@0.3.0':
+    resolution: {integrity: sha512-XjQBTMDUHRHkAKJWAcS7qRMzsytuQrVDbbuontGuvoiUWNhz/cVDJmNTkESyzurVfx2/ekK092ZZU/YuXnJ2Xw==, tarball: https://npm.pkg.github.com/download/@meshwork-ai/client-core/0.3.0/2a9d299fe01a219be752ac061a4ad8d8c03509c4}
+    engines: {node: '>=22'}
+
   '@meshwork-ai/config@0.1.0':
     resolution: {integrity: sha512-9f7ASBPIfHziz+FSuull24vUtOHlQT3uOXO6KqXCrHGi5zRCqTw+SEZf5V6lFJDxsY7Eb8huUCaWYKmzAqz/Tw==, tarball: https://npm.pkg.github.com/download/@meshwork-ai/config/0.1.0/f23fc90e2def5b1c7b3cac73da6dd17e1f520f60}
     engines: {node: '>=24'}
@@ -458,6 +474,14 @@ packages:
       prettier: ^3
       typescript: ^6
       vitest: ^5
+
+  '@meshwork-ai/i18n@0.3.0':
+    resolution: {integrity: sha512-c238iNYox8apYdRIYbI8IcVYn6sL6PxGzHuqYN5ubU3ZdRBmvC3svlKJBWyd/Y6KuwrO5AB9okIurNEwP7NvjA==, tarball: https://npm.pkg.github.com/download/@meshwork-ai/i18n/0.3.0/984edf4fe3724a8222ee177b3d706ecaff232df1}
+    engines: {node: '>=22'}
+
+  '@meshwork-ai/protocol@0.3.0':
+    resolution: {integrity: sha512-1L6iTOKedj7UOo5eh3v+IkokvZYXSPVaAwUhrgIXGy+kwABoOYaaCDKLeH4nrzAAtul4kPKvTXuBmz34YUbAYg==, tarball: https://npm.pkg.github.com/download/@meshwork-ai/protocol/0.3.0/64b5178b64abf79f2919030e3c67016e25563f51}
+    engines: {node: '>=22'}
 
   '@modelcontextprotocol/sdk@1.32.1':
     resolution: {integrity: sha512-2DdE+SJDtzLEEWzY1ZjY7Q+VcPhcV1KisD3zI4u0XZyktsjHum1mwbMI+JaulUBi2OZk+KJAi2uPXzxichPkdw==}
@@ -588,9 +612,6 @@ packages:
 
   '@types/node@24.19.2':
     resolution: {integrity: sha512-93d49wCWJkCyN87MxLpNN6KXPCwFw7bVUg79mGUV1OS40JGWwVCr8n61DXCSqz7CV6/VfPkb7xec7uP2M+QHWQ==}
-
-  '@types/ws@8.18.2':
-    resolution: {integrity: sha512-67MQl+fpWKVTT1NYdnmo3U4sc/xPo/zQBncVnI74qmQa0z/b+1g6iYqNmGCPbxO+zz2aklb08a0oHfegiVd0/w==}
 
   '@typescript-eslint/eslint-plugin@8.71.2':
     resolution: {integrity: sha512-K72/pvT7qpm8q3k8G5u93NCSN1RcLxX5h7Gw0bQpbMXviBHeY6Nx1WEwmk9wP+eKTSQ8ecxvcgt/ZX/rB938xQ==}
@@ -998,6 +1019,9 @@ packages:
 
   inherits@2.0.4:
     resolution: {integrity: sha512-k/vGaX4/Yla3WzyMCvTQOXYeIHvqOKtnqBduzTHpzpQZzAskKMhZ2K+EnBiSM9zGSoIFeMpXKxa4dYeZIQqewQ==}
+
+  intl-messageformat@12.1.3:
+    resolution: {integrity: sha512-JXi5wk8R/oSECKyxSIZ00VS8KG6MZkHM0qU4NS7RrvIWWXkiv3wVqGlCvEvyXiDvKlt2yqwZMiZGIv+I8rrnZQ==}
 
   ip-address@10.7.4:
     resolution: {integrity: sha512-DWBMKyeM25D70nrIiTkgQth59/G+naKOTep6huF9j+GmeK3DMD60Zvxg5d5qQnz+38AHgou6ean2LECX+lrKDg==}
@@ -1481,18 +1505,6 @@ packages:
   wrappy@1.0.2:
     resolution: {integrity: sha512-l4Sp/DRseor9wL6EvV2+TuQn63dMkPjZ/sp9XkghTEbV9KlPS1xUsZ3u7/IQO4wxtcFB4bgpQPRcR3QCvezPcQ==}
 
-  ws@8.22.0:
-    resolution: {integrity: sha512-Ydggc987+RO0AnWtZ/7Wq9FtNvcrL1b/RO0ud9mWjUPgDrsAAwQSF51sm2hm1XofbU/4jkpGEsLFsZZxU+1DOg==}
-    engines: {node: '>=10.0.0'}
-    peerDependencies:
-      bufferutil: ^4.0.1
-      utf-8-validate: '>=5.0.2'
-    peerDependenciesMeta:
-      bufferutil:
-        optional: true
-      utf-8-validate:
-        optional: true
-
   yocto-queue@0.1.0:
     resolution: {integrity: sha512-rVksvsnNCdJ/ohGc6xgPwyN8eheCxsiLM8mxuE/t/mOVqJewPuO1miLpTHQiRgTKCLexL4MeAFVagts7HmNZ2Q==}
     engines: {node: '>=10'}
@@ -1631,6 +1643,14 @@ snapshots:
       '@eslint/core': 1.2.1
       levn: 0.4.1
 
+  '@formatjs/fast-memoize@3.1.7': {}
+
+  '@formatjs/icu-messageformat-parser@3.5.21':
+    dependencies:
+      '@formatjs/icu-skeleton-parser': 2.1.12
+
+  '@formatjs/icu-skeleton-parser@2.1.12': {}
+
   '@hono/node-server@2.1.5(hono@4.13.13)':
     dependencies:
       hono: 4.13.13
@@ -1668,6 +1688,11 @@ snapshots:
 
   '@keyv/serialize@1.1.1': {}
 
+  '@meshwork-ai/client-core@0.3.0':
+    dependencies:
+      '@meshwork-ai/protocol': 0.3.0
+      zod: 4.6.7
+
   '@meshwork-ai/config@0.1.0(eslint@10.12.0)(prettier@3.9.10)(typescript@6.0.3)(vitest@5.0.5(@types/node@24.19.2)(vite@8.3.4(@types/node@24.19.2)(esbuild@0.28.2)))':
     dependencies:
       '@eslint/js': 10.0.1(eslint@10.12.0)
@@ -1679,6 +1704,15 @@ snapshots:
       vitest: 5.0.5(@types/node@24.19.2)(vite@8.3.4(@types/node@24.19.2)(esbuild@0.28.2))
     transitivePeerDependencies:
       - supports-color
+
+  '@meshwork-ai/i18n@0.3.0':
+    dependencies:
+      '@meshwork-ai/protocol': 0.3.0
+      intl-messageformat: 12.1.3
+
+  '@meshwork-ai/protocol@0.3.0':
+    dependencies:
+      zod: 4.6.7
 
   '@modelcontextprotocol/sdk@1.32.1(zod@4.6.7)':
     dependencies:
@@ -1767,10 +1801,6 @@ snapshots:
   '@types/node@24.19.2':
     dependencies:
       undici-types: 7.24.6
-
-  '@types/ws@8.18.2':
-    dependencies:
-      '@types/node': 24.19.2
 
   '@typescript-eslint/eslint-plugin@8.71.2(@typescript-eslint/parser@8.71.2(eslint@10.12.0)(typescript@6.0.3))(eslint@10.12.0)(typescript@6.0.3)':
     dependencies:
@@ -2261,6 +2291,11 @@ snapshots:
 
   inherits@2.0.4: {}
 
+  intl-messageformat@12.1.3:
+    dependencies:
+      '@formatjs/fast-memoize': 3.1.7
+      '@formatjs/icu-messageformat-parser': 3.5.21
+
   ip-address@10.7.4: {}
 
   ipaddr.js@1.9.1: {}
@@ -2651,8 +2686,6 @@ snapshots:
   word-wrap@1.2.5: {}
 
   wrappy@1.0.2: {}
-
-  ws@8.22.0: {}
 
   yocto-queue@0.1.0: {}
 

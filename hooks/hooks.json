@@ -1,0 +1,17 @@
+{
+  "description": "Meshwork 자산 보호 — 로그인 토큰 · 설정 폴더 · 플러그인 설치본 · 훅을 끄는 설정만 막는다(그 밖은 막지 않음)",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "^(Read|Write|Edit|MultiEdit|NotebookRead|NotebookEdit|LS|Grep|Glob|Bash|PowerShell)$|^mcp__(?!plugin_meshwork_meshwork__)",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/plugin/guard.sh\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}
