@@ -22,6 +22,8 @@ export interface Host {
    * 약속은 호스트에 넘긴 뒤 풀린다 — 넘기지 못하면 거절(받았다는 알림(ack)을 하지 않게 — 연결 계약 §6)
    */
   notify(content: string, meta?: Record<string, string>): Promise<void>
+  /** 사람에게 묻는 상자를 띄울 수 있나(MCP elicitation) — 사람만 답할 수 있다(에이전트는 답하지 못함) */
+  canAsk(): boolean
   /** 선택지를 띄워 하나를 받는다. 대화형 화면이 없거나 취소하면 null — 부르는 쪽은 글 안내로 내려간다 */
   choose(spec: ChoiceSpec): Promise<string | null>
   /** 시스템 브라우저로 https 주소를 연다 — 못 열면 false(주소를 글로 보여 준다) */

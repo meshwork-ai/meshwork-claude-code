@@ -99,6 +99,12 @@ describe('번들 — 팀 세션 · 로그인 전', () => {
     ).toBe(0o600)
   })
 
+  it('처음 보는 서버로 로그인은 확인 상자가 있어야 — 못 띄우는 클라이언트면 거절(속은 에이전트가 서버를 바꾸지 못하게)', async () => {
+    const p = await start({ team: true })
+    const r = await p.call('login', { server: 'meshwork.example.com' })
+    expect(r).toEqual({ isError: true, text: expect.stringContaining('확인 상자가 필요') })
+  })
+
   it('로그인 — 서버 주소가 없으면 사용법 · http 는 거절(TLS 만)', async () => {
     const p = await start({ team: true })
     expect(await p.call('login', {})).toEqual({

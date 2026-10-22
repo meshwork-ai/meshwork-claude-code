@@ -30303,7 +30303,7 @@ var StdioServerTransport = class {
   }
 };
 
-// ../node_modules/.pnpm/@meshwork-ai+protocol@0.3.1/node_modules/@meshwork-ai/protocol/dist/codes.js
+// ../node_modules/.pnpm/@meshwork-ai+protocol@0.3.2/node_modules/@meshwork-ai/protocol/dist/codes.js
 var ERROR_CODES = {
   "request.invalid": ["path"],
   "op.unknown": ["op"],
@@ -30427,7 +30427,7 @@ var REVOKE_REASONS = [
 var APPROVAL_REJECT_REASONS = ["expired", "no_approver"];
 var CODE_PATTERN = /^[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*$/;
 
-// ../node_modules/.pnpm/@meshwork-ai+protocol@0.3.1/node_modules/@meshwork-ai/protocol/dist/ids.js
+// ../node_modules/.pnpm/@meshwork-ai+protocol@0.3.2/node_modules/@meshwork-ai/protocol/dist/ids.js
 var ID_PREFIXES = [
   "org",
   // 조직
@@ -30490,7 +30490,7 @@ var serviceNoticeId = id("svn");
 var actionRecordId = id("act");
 var inviteId = id("inv");
 
-// ../node_modules/.pnpm/@meshwork-ai+protocol@0.3.1/node_modules/@meshwork-ai/protocol/dist/limits.js
+// ../node_modules/.pnpm/@meshwork-ai+protocol@0.3.2/node_modules/@meshwork-ai/protocol/dist/limits.js
 var KB = 1024;
 var LIMITS = {
   /** 프레임 하나 — 64KB × 8 + 4KB */
@@ -30519,7 +30519,7 @@ var LIMITS = {
   holdMinutes: 5
 };
 
-// ../node_modules/.pnpm/@meshwork-ai+protocol@0.3.1/node_modules/@meshwork-ai/protocol/dist/frame.js
+// ../node_modules/.pnpm/@meshwork-ai+protocol@0.3.2/node_modules/@meshwork-ai/protocol/dist/frame.js
 var requestId = external_exports.string().min(1).max(LIMITS.requestIdChars);
 var opName = external_exports.string().regex(/^[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)?$/);
 var evName = external_exports.string().regex(/^[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*$/);
@@ -30564,7 +30564,7 @@ function parseServerFrame(json2) {
   return { kind: "invalid" };
 }
 
-// ../node_modules/.pnpm/@meshwork-ai+protocol@0.3.1/node_modules/@meshwork-ai/protocol/dist/shapes.js
+// ../node_modules/.pnpm/@meshwork-ai+protocol@0.3.2/node_modules/@meshwork-ai/protocol/dist/shapes.js
 function openEnum(values) {
   return external_exports.union([external_exports.enum(values), external_exports.string()]);
 }
@@ -30776,7 +30776,7 @@ var device = external_exports.object({
   policy: agentPolicy.optional()
 });
 
-// ../node_modules/.pnpm/@meshwork-ai+protocol@0.3.1/node_modules/@meshwork-ai/protocol/dist/policies.js
+// ../node_modules/.pnpm/@meshwork-ai+protocol@0.3.2/node_modules/@meshwork-ai/protocol/dist/policies.js
 var MIN = 60;
 var HOUR = 60 * MIN;
 var DAY = 24 * HOUR;
@@ -31033,12 +31033,12 @@ function nestSchema(entries) {
 }
 var clientPolicy = nestSchema(clientKeys.map((k) => [k.split("."), POLICIES[k].schema]));
 
-// ../node_modules/.pnpm/@meshwork-ai+protocol@0.3.1/node_modules/@meshwork-ai/protocol/dist/ops/define.js
+// ../node_modules/.pnpm/@meshwork-ai+protocol@0.3.2/node_modules/@meshwork-ai/protocol/dist/ops/define.js
 var op = (def) => def;
 var ev = (def) => def;
 var empty = external_exports.object({});
 
-// ../node_modules/.pnpm/@meshwork-ai+protocol@0.3.1/node_modules/@meshwork-ai/protocol/dist/ops/address.js
+// ../node_modules/.pnpm/@meshwork-ai+protocol@0.3.2/node_modules/@meshwork-ai/protocol/dist/ops/address.js
 var candidate = external_exports.discriminatedUnion("kind", [
   external_exports.object({ kind: external_exports.literal("member"), id: memberId, name: external_exports.string(), room: roomId }),
   external_exports.object({ kind: external_exports.literal("role"), id: groupId, name: external_exports.string(), room: roomId })
@@ -31079,7 +31079,7 @@ var events = {
   })
 };
 
-// ../node_modules/.pnpm/@meshwork-ai+protocol@0.3.1/node_modules/@meshwork-ai/protocol/dist/ops/approval.js
+// ../node_modules/.pnpm/@meshwork-ai+protocol@0.3.2/node_modules/@meshwork-ai/protocol/dist/ops/approval.js
 var ops2 = {
   "action.check": op({
     sid: "required",
@@ -31174,7 +31174,7 @@ var events2 = {
   "bot.policy_changed": ev({ seq: true, feature: "core", data: external_exports.object({ bot: botPolicy }) })
 };
 
-// ../node_modules/.pnpm/@meshwork-ai+protocol@0.3.1/node_modules/@meshwork-ai/protocol/dist/ops/connection.js
+// ../node_modules/.pnpm/@meshwork-ai+protocol@0.3.2/node_modules/@meshwork-ai/protocol/dist/ops/connection.js
 var lang = external_exports.string().nullable();
 var tz = external_exports.string().nullable();
 var welcome = external_exports.object({
@@ -31324,7 +31324,7 @@ var events3 = {
   })
 };
 
-// ../node_modules/.pnpm/@meshwork-ai+protocol@0.3.1/node_modules/@meshwork-ai/protocol/dist/ops/history.js
+// ../node_modules/.pnpm/@meshwork-ai+protocol@0.3.2/node_modules/@meshwork-ai/protocol/dist/ops/history.js
 var dedupe = external_exports.string();
 var more = external_exports.boolean();
 var rev = external_exports.int();
@@ -31461,7 +31461,7 @@ var events4 = {
   "memory.changed": ev({ seq: true, feature: "core", data: external_exports.object({ room: roomId, rev }) })
 };
 
-// ../node_modules/.pnpm/@meshwork-ai+protocol@0.3.1/node_modules/@meshwork-ai/protocol/dist/ops/message.js
+// ../node_modules/.pnpm/@meshwork-ai+protocol@0.3.2/node_modules/@meshwork-ai/protocol/dist/ops/message.js
 var sendNote = external_exports.enum(["away", "off", "offline", "noack", "open_thread"]);
 var dedupe2 = external_exports.string();
 var ops5 = {
@@ -31531,7 +31531,7 @@ var events5 = {
   })
 };
 
-// ../node_modules/.pnpm/@meshwork-ai+protocol@0.3.1/node_modules/@meshwork-ai/protocol/dist/ops/room.js
+// ../node_modules/.pnpm/@meshwork-ai+protocol@0.3.2/node_modules/@meshwork-ai/protocol/dist/ops/room.js
 var roomMember = external_exports.object({
   member: memberId,
   /** 그 방에서의 표시 이름 */
@@ -31660,7 +31660,7 @@ var events6 = {
   "org.notice": ev({ seq: true, feature: "core", data: external_exports.object({ notice: orgNotice }) })
 };
 
-// ../node_modules/.pnpm/@meshwork-ai+protocol@0.3.1/node_modules/@meshwork-ai/protocol/dist/ops/rules.js
+// ../node_modules/.pnpm/@meshwork-ai+protocol@0.3.2/node_modules/@meshwork-ai/protocol/dist/ops/rules.js
 var rev2 = external_exports.int();
 var ops7 = {
   "rules.get": op({
@@ -31685,7 +31685,7 @@ var events7 = {
   "rules.changed": ev({ seq: true, feature: "core", data: external_exports.object({ rev: rev2 }) })
 };
 
-// ../node_modules/.pnpm/@meshwork-ai+protocol@0.3.1/node_modules/@meshwork-ai/protocol/dist/ops/session.js
+// ../node_modules/.pnpm/@meshwork-ai+protocol@0.3.2/node_modules/@meshwork-ai/protocol/dist/ops/session.js
 var engine = openEnum(["claude", "codex", "gemini", "copilot"]);
 var engineAuth = external_exports.enum(["subscription", "api_key", "cloud"]);
 var rooms = external_exports.array(roomId);
@@ -31766,7 +31766,7 @@ var events8 = {
   })
 };
 
-// ../node_modules/.pnpm/@meshwork-ai+protocol@0.3.1/node_modules/@meshwork-ai/protocol/dist/registry.js
+// ../node_modules/.pnpm/@meshwork-ai+protocol@0.3.2/node_modules/@meshwork-ai/protocol/dist/registry.js
 var OPS = {
   ...ops3,
   ...ops8,
@@ -31789,7 +31789,7 @@ var EVENTS = {
 };
 var isEvName = (name) => Object.hasOwn(EVENTS, name);
 
-// ../node_modules/.pnpm/@meshwork-ai+protocol@0.3.1/node_modules/@meshwork-ai/protocol/dist/transport.js
+// ../node_modules/.pnpm/@meshwork-ai+protocol@0.3.2/node_modules/@meshwork-ai/protocol/dist/transport.js
 var PROTOCOL_MAJOR = 6;
 var SUBPROTOCOL = `meshwork.v${PROTOCOL_MAJOR}`;
 var TRANSPORT = {
@@ -31812,7 +31812,7 @@ var TRANSPORT = {
   refreshGraceMs: 6e4
 };
 
-// ../node_modules/.pnpm/@meshwork-ai+protocol@0.3.1/node_modules/@meshwork-ai/protocol/dist/http/client.js
+// ../node_modules/.pnpm/@meshwork-ai+protocol@0.3.2/node_modules/@meshwork-ai/protocol/dist/http/client.js
 var versionInfo = external_exports.object({
   /** 받는 웹소켓 주 버전 */
   protos: external_exports.array(external_exports.int()),
@@ -31883,7 +31883,7 @@ var downloadsManifest = external_exports.object({
   plugin: external_exports.object({ version: external_exports.string(), marketplace: external_exports.string(), name: external_exports.string() })
 });
 
-// ../node_modules/.pnpm/@meshwork-ai+protocol@0.3.1/node_modules/@meshwork-ai/protocol/dist/http/common.js
+// ../node_modules/.pnpm/@meshwork-ai+protocol@0.3.2/node_modules/@meshwork-ai/protocol/dist/http/common.js
 var HEADERS = {
   /** §1.7 — 만들기 요청에 반드시 */
   idempotencyKey: "Idempotency-Key",
@@ -31930,7 +31930,7 @@ var pageQuery = external_exports.object({
   sort: external_exports.string().optional()
 });
 
-// ../node_modules/.pnpm/@meshwork-ai+protocol@0.3.1/node_modules/@meshwork-ai/protocol/dist/http/oauth.js
+// ../node_modules/.pnpm/@meshwork-ai+protocol@0.3.2/node_modules/@meshwork-ai/protocol/dist/http/oauth.js
 var CLIENT_IDS = {
   "meshwork-desktop": "desktop",
   "meshwork-console": null,
@@ -32037,7 +32037,7 @@ var emailStartRequest = external_exports.object({ email: external_exports.email(
 var emailVerifyRequest = external_exports.object({ email: external_exports.email(), code: external_exports.string() });
 var emailVerifyResponse = external_exports.object({ next: external_exports.string() });
 
-// ../node_modules/.pnpm/@meshwork-ai+protocol@0.3.1/node_modules/@meshwork-ai/protocol/dist/http/routes.js
+// ../node_modules/.pnpm/@meshwork-ai+protocol@0.3.2/node_modules/@meshwork-ai/protocol/dist/http/routes.js
 var route = (def) => def;
 var ROUTES = {
   // §2.1
@@ -32172,7 +32172,7 @@ var ROUTES = {
   })
 };
 
-// ../node_modules/.pnpm/@meshwork-ai+protocol@0.3.1/node_modules/@meshwork-ai/protocol/dist/http/status.js
+// ../node_modules/.pnpm/@meshwork-ai+protocol@0.3.2/node_modules/@meshwork-ai/protocol/dist/http/status.js
 var BY_TAIL = [
   [".unknown", 404],
   [".already_resolved", 409]
@@ -32268,7 +32268,7 @@ function build() {
 }
 var HTTP_STATUS = build();
 
-// ../node_modules/.pnpm/@meshwork-ai+client-core@0.3.1/node_modules/@meshwork-ai/client-core/dist/errors.js
+// ../node_modules/.pnpm/@meshwork-ai+client-core@0.3.2/node_modules/@meshwork-ai/client-core/dist/errors.js
 var MeshworkError = class extends Error {
   code;
   params;
@@ -32309,7 +32309,7 @@ var UndeliveredError = class extends Error {
   }
 };
 
-// ../node_modules/.pnpm/@meshwork-ai+client-core@0.3.1/node_modules/@meshwork-ai/client-core/dist/auth.js
+// ../node_modules/.pnpm/@meshwork-ai+client-core@0.3.2/node_modules/@meshwork-ai/client-core/dist/auth.js
 var LoginRequiredError = class extends Error {
   name = "LoginRequiredError";
 };
@@ -32468,8 +32468,8 @@ async function deviceCodeLogin(options) {
     verificationUriComplete: code.verification_uri_complete,
     expiresIn: code.expires_in
   });
-  let interval = code.interval * 1e3;
-  const until = clock2.now() + code.expires_in * 1e3;
+  let interval = Math.min(Math.max(code.interval, 1), 60) * 1e3;
+  const until = clock2.now() + Math.min(Math.max(code.expires_in, 1), 1800) * 1e3;
   for (; ; ) {
     await sleep(clock2, interval);
     if (options.signal?.aborted)
@@ -32540,7 +32540,7 @@ async function botKeyLogin(o) {
   };
 }
 
-// ../node_modules/.pnpm/@meshwork-ai+client-core@0.3.1/node_modules/@meshwork-ai/client-core/dist/ulid.js
+// ../node_modules/.pnpm/@meshwork-ai+client-core@0.3.2/node_modules/@meshwork-ai/client-core/dist/ulid.js
 var B32 = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
 function ulid3(now) {
   let time3 = "";
@@ -32557,7 +32557,7 @@ function ulid3(now) {
   return time3 + random;
 }
 
-// ../node_modules/.pnpm/@meshwork-ai+client-core@0.3.1/node_modules/@meshwork-ai/client-core/dist/client.js
+// ../node_modules/.pnpm/@meshwork-ai+client-core@0.3.2/node_modules/@meshwork-ai/client-core/dist/client.js
 var DEDUPE_OPS = /* @__PURE__ */ new Set([
   "message.send",
   "message.reply",
@@ -33264,7 +33264,7 @@ var MeshworkClient = class {
 };
 var createClient = (options) => new MeshworkClient(options);
 
-// ../node_modules/.pnpm/@meshwork-ai+client-core@0.3.1/node_modules/@meshwork-ai/client-core/dist/context.js
+// ../node_modules/.pnpm/@meshwork-ai+client-core@0.3.2/node_modules/@meshwork-ai/client-core/dist/context.js
 var realClock3 = {
   now: () => Date.now(),
   setTimeout: (fn, ms) => setTimeout(fn, ms),
@@ -36110,7 +36110,7 @@ var IntlMessageFormat = class IntlMessageFormat2 {
   }
 };
 
-// ../node_modules/.pnpm/@meshwork-ai+i18n@0.3.1/node_modules/@meshwork-ai/i18n/dist/messages/en.json
+// ../node_modules/.pnpm/@meshwork-ai+i18n@0.3.2/node_modules/@meshwork-ai/i18n/dist/messages/en.json
 var en_default2 = {
   error: {
     "request.invalid": "The request is malformed. Update the app to the latest version.",
@@ -36282,7 +36282,7 @@ var en_default2 = {
   }
 };
 
-// ../node_modules/.pnpm/@meshwork-ai+i18n@0.3.1/node_modules/@meshwork-ai/i18n/dist/messages/ko.json
+// ../node_modules/.pnpm/@meshwork-ai+i18n@0.3.2/node_modules/@meshwork-ai/i18n/dist/messages/ko.json
 var ko_default2 = {
   error: {
     "request.invalid": "\uC694\uCCAD \uD615\uC2DD\uC774 \uC62C\uBC14\uB974\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4. \uC571\uC744 \uCD5C\uC2E0 \uBC84\uC804\uC73C\uB85C \uC5C5\uB370\uC774\uD2B8\uD574 \uC8FC\uC138\uC694.",
@@ -36454,7 +36454,7 @@ var ko_default2 = {
   }
 };
 
-// ../node_modules/.pnpm/@meshwork-ai+i18n@0.3.1/node_modules/@meshwork-ai/i18n/dist/index.js
+// ../node_modules/.pnpm/@meshwork-ai+i18n@0.3.2/node_modules/@meshwork-ai/i18n/dist/index.js
 var LANGS = ["ko", "en"];
 var MESSAGES = { ko: ko_default2, en: en_default2 };
 var GROUP_PARAMS = {
@@ -36637,7 +36637,7 @@ function buildInstructions(i) {
 // app/link.ts
 import { hostname as hostname3, release, type } from "node:os";
 
-// ../node_modules/.pnpm/@meshwork-ai+client-core@0.3.1/node_modules/@meshwork-ai/client-core/dist/node.js
+// ../node_modules/.pnpm/@meshwork-ai+client-core@0.3.2/node_modules/@meshwork-ai/client-core/dist/node.js
 import { mkdir, open as open2, readFile, rename, stat, unlink, utimes, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 var nodeSocket = (url2, protocols, handlers) => {
@@ -38831,6 +38831,30 @@ async function login(p, a) {
       `\uC774\uBBF8 \uB85C\uADF8\uC778\uB3FC \uC788\uC2B5\uB2C8\uB2E4 ('${cfg.orgName ?? cfg.org}' \uC870\uC9C1 @ ${cfg.server ? new URL(cfg.server).host : ""}) \u2014 \uB2E4\uB978 \uACC4\uC815\uC73C\uB85C \uBC14\uAFB8\uB824\uBA74 /meshwork:login logout \uB4A4 \uB2E4\uC2DC \uB85C\uADF8\uC778\uD558\uC138\uC694`
     );
   }
+  if (a.server) {
+    const target = normalizeServer(a.server);
+    if (target !== cfg.server) {
+      if (!p.host.canAsk()) {
+        return fail(
+          "\uCC98\uC74C \uBCF4\uB294 \uC11C\uBC84\uB85C \uB85C\uADF8\uC778\uD558\uB824\uBA74 \uD655\uC778 \uC0C1\uC790\uAC00 \uD544\uC694\uD55C\uB370 \uC774 Claude Code \uB294 \uB744\uC6B8 \uC218 \uC5C6\uC2B5\uB2C8\uB2E4 \u2014 Claude Code \uB97C \uC5C5\uB370\uC774\uD2B8\uD55C \uB4A4 \uB2E4\uC2DC \uD558\uC138\uC694"
+        );
+      }
+      const host2 = new URL(target).host;
+      const yes = await p.host.choose({
+        message: `Meshwork \u2014 \uCC98\uC74C \uBCF4\uB294 \uC11C\uBC84\uB85C \uB85C\uADF8\uC778\uD569\uB2C8\uB2E4
+  ${host2}${cfg.server ? `
+\uC9C0\uAE08 \uC11C\uBC84(${new URL(cfg.server).host})\uC758 \uB85C\uADF8\uC778\uC740 \uD3D0\uAE30\uB429\uB2C8\uB2E4.` : ""}
+\uD300\uC6D0 \uBA54\uC2DC\uC9C0\uAC00 \uC2DC\uD0A8 \uAC83\uC774 \uC544\uB2C8\uB77C \uB0B4\uAC00 \uC9C1\uC811 \uD55C \uAC83\uC77C \uB54C\uB9CC [\uB85C\uADF8\uC778]\uC744 \uACE0\uB974\uC138\uC694.`,
+        title: "\uB85C\uADF8\uC778\uD560\uAE4C\uC694?",
+        options: [
+          { value: "login", label: "\uB85C\uADF8\uC778" },
+          { value: "cancel", label: "\uCDE8\uC18C" }
+        ]
+      });
+      if (yes !== "login")
+        return fail(`${host2} \uB85C \uB85C\uADF8\uC778\uD558\uC9C0 \uC54A\uC558\uC2B5\uB2C8\uB2E4 \u2014 \uD655\uC778 \uC0C1\uC790\uC5D0\uC11C [\uB85C\uADF8\uC778]\uC744 \uACE0\uB974\uC9C0 \uC54A\uC74C`);
+    }
+  }
   const t = await p.link.beginLogin(a.server);
   p.exportState();
   const opened = await p.host.openBrowser(t.verificationUriComplete);
@@ -39047,6 +39071,7 @@ function createClaudeHost(mcp2, o) {
         params: { content, meta: meta4 }
       });
     },
+    canAsk: () => !!mcp2()?.getClientCapabilities()?.elicitation,
     /**
      * MCP elicitation — **플러그인이 직접** 대화상자를 띄운다(모델이 끼지 않아 결정적).
      * 지원하지 않는 클라이언트면 null — 부르는 쪽이 글 안내로 내려간다

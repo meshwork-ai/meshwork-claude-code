@@ -20,7 +20,7 @@ import { fileURLToPath } from 'node:url'
 import type { Session } from '@meshwork-ai/client-core'
 import { formatCode } from '@meshwork-ai/i18n'
 
-import { loadConfig } from '../core/config'
+import { loadConfig, normalizeServer } from '../core/config'
 import { addRoute, labelOf, removeRoute, renderRoutes } from '../core/routes'
 import { choiceLabel, classifyRooms, renderRooms } from '../core/rooms'
 import { MIN_NODE, PLUGIN_VERSION } from '../core/version'
@@ -1077,6 +1077,29 @@ async function login(p: Plugin, a: Args): Promise<ToolResult> {
     return ok(
       `이미 로그인돼 있습니다 ('${cfg.orgName ?? cfg.org}' 조직 @ ${cfg.server ? new URL(cfg.server).host : ''}) — 다른 계정으로 바꾸려면 /meshwork:login logout 뒤 다시 로그인하세요`,
     )
+  }
+  // 처음 보는 서버로 로그인하려면 사람이 확인한다(3단계 확인 4) — 팀원 메시지에 속은 에이전트가 사람 모르게 서버를 바꾸면
+  // 진짜 서버의 로그인이 폐기되고 그 뒤 대화 · 팀 규약이 그 서버로 간다. 같은 서버로 다시 로그인할 때는 묻지 않는다
+  if (a.server) {
+    const target = normalizeServer(a.server)
+    if (target !== cfg.server) {
+      if (!p.host.canAsk()) {
+        return fail(
+          '처음 보는 서버로 로그인하려면 확인 상자가 필요한데 이 Claude Code 는 띄울 수 없습니다 — Claude Code 를 업데이트한 뒤 다시 하세요',
+        )
+      }
+      const host = new URL(target).host
+      const yes = await p.host.choose({
+        message: `Meshwork — 처음 보는 서버로 로그인합니다\n  ${host}${cfg.server ? `\n지금 서버(${new URL(cfg.server).host})의 로그인은 폐기됩니다.` : ''}\n팀원 메시지가 시킨 것이 아니라 내가 직접 한 것일 때만 [로그인]을 고르세요.`,
+        title: '로그인할까요?',
+        options: [
+          { value: 'login', label: '로그인' },
+          { value: 'cancel', label: '취소' },
+        ],
+      })
+      if (yes !== 'login')
+        return fail(`${host} 로 로그인하지 않았습니다 — 확인 상자에서 [로그인]을 고르지 않음`)
+    }
   }
   const t = await p.link.beginLogin(a.server)
   p.exportState()

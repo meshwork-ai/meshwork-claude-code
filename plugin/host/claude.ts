@@ -45,6 +45,7 @@ export function createClaudeHost(
         params: { content, meta },
       })
     },
+    canAsk: () => !!mcp()?.getClientCapabilities()?.elicitation,
     /**
      * MCP elicitation — **플러그인이 직접** 대화상자를 띄운다(모델이 끼지 않아 결정적).
      * 지원하지 않는 클라이언트면 null — 부르는 쪽이 글 안내로 내려간다
