@@ -102,6 +102,10 @@ export class Link {
   context?: Context
   /** 켠 뒤 규약 · 방 메모리가 바뀜 — 새 세션부터(명세 §12) */
   contextChanged = false
+  /** 지금 클라이언트가 쓰는 기기(보관함에서 읽은 것) */
+  private device?: string
+  /** 다시 시작 중 — 겹치지 않게 하나씩 */
+  private restarting?: Promise<boolean>
   /** 진행 중인 로그인 */
   private pendingLogin?: { ticket: Promise<LoginTicket>; abort: AbortController; server: string }
   private tokens?: TokenManager
@@ -192,6 +196,8 @@ export class Link {
 
   /** 새 클라이언트로 붙는다 — 첫 welcome 뒤 세션을 연다 */
   private start(): MeshworkClient {
+    // 앞 클라이언트가 남아 있으면 닫는다 — 둘이 함께 돌면 알림이 두 번 · 연결이 남는다
+    if (this.client) this.stopClient()
     const cfg = this.config()
     this.tokens = this.tokenManager(cfg.server!)
     const client = createClient({
@@ -205,7 +211,15 @@ export class Link {
     this.client = client
     this.session = undefined
     this.welcome = undefined
+    this.device = undefined
     this.state = { kind: 'connecting' }
+    // 이 클라이언트가 쓰는 기기 — 죽은 토큰을 지울 때 다른 터미널의 새 로그인을 지우지 않게(welcome 전에 끝나도)
+    void this.store.load().then(
+      (t) => {
+        if (this.client === client) this.device = t?.device
+      },
+      () => undefined,
+    )
     client.on('open', (w) => {
       if (this.client !== client) return
       this.welcome = w
@@ -306,8 +320,7 @@ export class Link {
       this.state.kind === 'no_org'
     ) {
       // 다른 터미널이 그사이 로그인했을 수 있다
-      if (await this.prepare()) this.restart()
-      else return false
+      if (!(await this.restart())) return false
     }
     const until = Date.now() + timeoutMs
     while (Date.now() < until) {
@@ -319,10 +332,15 @@ export class Link {
     return this.state.kind === 'open' && !!this.session && !this.session.closed
   }
 
-  /** 닫고 처음부터 — 로그인 · 조직 바꾸기 뒤 */
-  restart(): void {
-    this.stopClient()
-    void this.prepare().then((ok) => ok && this.start())
+  /** 닫고 처음부터 — 로그인 · 조직 바꾸기 뒤. 겹쳐 부르면 하나로 · 붙기 시작했으면 true */
+  restart(): Promise<boolean> {
+    this.restarting ??= (async () => {
+      this.stopClient()
+      const ok = await this.prepare()
+      if (ok) this.start()
+      return ok
+    })().finally(() => (this.restarting = undefined))
+    return this.restarting
   }
 
   private stopClient(): void {
@@ -331,6 +349,8 @@ export class Link {
     const c = this.client
     this.client = undefined
     this.session = undefined
+    // 토큰 관리자도 버린다 — 로그아웃 · 다시 로그인 · 서버 바꾸기 뒤에 옛 토큰을 쓰지 않게
+    this.tokens = undefined
     c?.close()
   }
 
@@ -346,7 +366,10 @@ export class Link {
     ) {
       // 토큰이 죽었거나 그 조직에 붙으려면 다시 로그인해야 함. 죽은 토큰은 지우되 **이 연결의 기기 것일 때만** —
       // 다른 터미널이 그사이 새로 로그인해 저장한 토큰을 지우지 않게
-      if (reason === 'revoked' || reason === 'login') void this.forget(this.welcome?.me.device)
+      if (reason === 'revoked' || reason === 'login') {
+        const device = this.welcome?.me.device ?? this.device
+        if (device) void this.forget(device)
+      }
       this.state = {
         kind: 'logged_out',
         reason:
@@ -362,11 +385,11 @@ export class Link {
   }
 
   /** 죽은 토큰 지우기 — 보관함의 토큰이 그 기기의 것일 때만 */
-  private async forget(device: string | undefined): Promise<void> {
+  private async forget(device: string): Promise<void> {
     await this.lock
       .run(async () => {
         const t = await this.store.load()
-        if (t && (!device || t.device === device)) await this.store.clear()
+        if (t && t.device === device) await this.store.clear()
       })
       .catch(() => undefined)
   }
@@ -401,7 +424,24 @@ export class Link {
       deviceName: deviceName(),
       deviceOs: deviceOs(),
       signal: abort.signal,
-      onCode: (c) => showCode({ server, ...c }),
+      onCode: (c) => {
+        // 브라우저로 열 주소는 그 서버의 것만 — 다른 곳(피싱 화면)으로 보내는 서버를 믿지 않는다
+        const same = (u: string) => {
+          try {
+            return new URL(u).origin === server
+          } catch {
+            return false
+          }
+        }
+        if (!same(c.verificationUri) || !same(c.verificationUriComplete)) {
+          abort.abort()
+          failStart(
+            new Error('서버가 다른 주소의 로그인 화면을 알려 왔습니다 — 서버 주소를 확인하세요'),
+          )
+          return
+        }
+        showCode({ server, ...c })
+      },
     }).then(
       async (result) => {
         if (this.pendingLogin?.abort !== abort) return
@@ -497,15 +537,22 @@ export class Link {
     return parsed.data
   }
 
-  /** 조직을 바꾼다 — 연결을 새로 */
-  async switchOrg(): Promise<{ org: MyOrg | null; orgs: MyOrg[] }> {
+  /**
+   * 조직을 바꾼다 — 연결을 새로. `want`(이름 · id)를 주면 고르는 창 없이 그 조직으로(대화상자를 못 띄우는 곳에서도 고를 수 있게)
+   */
+  async switchOrg(want?: string): Promise<{ org: MyOrg | null; orgs: MyOrg[] }> {
     const orgs = await this.listOrgs()
-    const org = await this.pickOrg(
-      orgs,
-      this.config().org,
-      orgs.filter((o) => o.membership === 'active').length > 1,
-    )
-    if (org) this.restart()
+    const active = orgs.filter((o) => o.membership === 'active')
+    let org: MyOrg | null
+    if (want) {
+      const w = want.normalize('NFC').trim().toLowerCase()
+      org =
+        active.find(
+          (o) => o.id === want.trim() || o.name.normalize('NFC').trim().toLowerCase() === w,
+        ) ?? null
+      if (org) this.save({ org: org.id, orgName: org.name })
+    } else org = await this.pickOrg(orgs, this.config().org, active.length > 1)
+    if (org) await this.restart()
     return { org, orgs }
   }
 

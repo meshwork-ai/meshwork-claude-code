@@ -67,4 +67,3 @@ jobs:
           node-version: 22
       # 번들을 띄우는 시험만 — 시험 틀이 지금 Node(22)로 번들을 띄운다
       - run: node --version && node node_modules/vitest/vitest.mjs run plugin/test/bundle.test.ts plugin/test/guard.test.ts
-

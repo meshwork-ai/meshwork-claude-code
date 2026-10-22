@@ -3,7 +3,7 @@
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "^(Read|Write|Edit|MultiEdit|NotebookRead|NotebookEdit|LS|Grep|Glob|Bash|PowerShell)$|^mcp__(?!plugin_meshwork_meshwork__)",
+        "matcher": "*",
         "hooks": [
           {
             "type": "command",

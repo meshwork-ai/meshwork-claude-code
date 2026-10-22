@@ -83,9 +83,18 @@ export class Plugin {
     await this.host.notify(content, meta)
   }
 
-  /** 알리기만 — 실패해도 넘어간다(다시 받을 수 없는 알림) */
+  /**
+   * 플러그인이 만든 알림 — `author="plugin"` 을 붙인다(from 없음). 팀원 메시지 본문에 같은 글(「[이미 답함]」 등)을 넣어도
+   * 꼬리표로 가려지게(안내문이 「from 이 없고 author 가 plugin · system 인 것만」 이라고 적는다).
+   * seq 가 붙은 서버 알림을 처리하다 부를 때는 실패를 던져 ack 하지 않게 한다(서버가 다시 보냄)
+   */
+  private say(content: string, meta: Record<string, string> = { kind: 'system' }): Promise<void> {
+    return this.notify(content, { ...meta, author: 'plugin' })
+  }
+
+  /** 알리기만 — 실패해도 넘어간다(다시 받을 수 없는 알림 — 로그인 결과 · 연결 끝 · 세션 열림) */
   private tell(content: string, meta: Record<string, string> = { kind: 'system' }): Promise<void> {
-    return this.notify(content, meta).catch((e: unknown) =>
+    return this.say(content, meta).catch((e: unknown) =>
       this.log(`알림 실패: ${(e as Error).message}`),
     )
   }
@@ -102,7 +111,10 @@ export class Plugin {
   // ── 서버 알림 ────────────────────────────────────────────────────
 
   private wire(client: MeshworkClient): void {
+    // 다시 시작해 버린 옛 클라이언트의 알림은 무시한다(알림이 두 번 · 옛 세션에 hold 하지 않게)
+    const live = () => this.link.client === client
     client.on('open', (w) => {
+      if (!live()) return
       this.lang = pickLang(w.me.lang ?? 'ko')
       this.off = w.me.presence === 'off'
       this.serviceNotices = w.notices
@@ -112,13 +124,16 @@ export class Plugin {
       this.exportState()
     })
     client.on('reconnecting', () => this.exportState())
-    client.on('message.new', (m, frame) => this.onMessage(m, frame.sid))
-    client.on('thread.state', (d) => this.onThreadState(d))
-    client.on('thread.assigned', (d) => this.onAssigned(d))
-    client.on('agree.resolved', (d) => this.onAgreeResolved(d))
-    client.on('session.room_lost', (d, frame) => this.onRoomLost(d, frame.sid))
-    client.on('me.rooms_changed', (d) => this.onRoomsChanged(d))
+    client.on('message.new', (m, frame) => (live() ? this.onMessage(m, frame.sid) : undefined))
+    client.on('thread.state', (d) => (live() ? this.onThreadState(d) : undefined))
+    client.on('thread.assigned', (d) => (live() ? this.onAssigned(d) : undefined))
+    client.on('agree.resolved', (d) => (live() ? this.onAgreeResolved(d) : undefined))
+    client.on('session.room_lost', (d, frame) =>
+      live() ? this.onRoomLost(d, frame.sid) : undefined,
+    )
+    client.on('me.rooms_changed', (d) => (live() ? this.onRoomsChanged(d) : undefined))
     client.on('room.changed', ({ room }) => {
+      if (!live()) return
       this.dir.invalidate(room)
       void client.call('room.list', {}).then(
         (r) => {
@@ -129,21 +144,26 @@ export class Plugin {
       )
     })
     client.on('presence.changed', (d) => {
+      if (!live()) return
       if (d.member === this.me) this.off = d.presence === 'off'
     })
     client.on('me.changed', (d) => {
+      if (!live()) return
       this.lang = pickLang(d.lang ?? 'ko')
       if (d.lang) this.link.save({ lang: d.lang })
     })
     client.on('org.notice', ({ notice }) => {
+      if (!live()) return
       this.orgNotice = { text: notice.text, endsAt: notice.endsAt }
       this.exportState()
     })
     client.on('service.notice', ({ notices }) => {
+      if (!live()) return
       this.serviceNotices = notices
       this.exportState()
     })
     client.on('sessionLost', ({ sid }) => {
+      if (!live()) return
       // 서버가 이 세션을 모름(5분 넘게 끊김) — 받던 방으로 새로 연다(가져오지는 않음)
       if (this.link.session?.sid !== sid) return
       const held = this.link.session.held
@@ -174,6 +194,7 @@ export class Plugin {
     if (m.thread && m.from && (needsAnswer || m.kind === 'agree')) {
       this.received.set(m.thread, { from: m.from.name, ...(m.room ? { room: m.room } : {}) })
       this.answeredElsewhere.delete(m.thread)
+      this.repliedHere.delete(m.thread)
     }
     if (m.from) this.dir.remember(m.from.member, m.from.name)
     // 넣지 못하면 던진다 — client-core 가 ack 하지 않고 다시 받는다
@@ -192,7 +213,7 @@ export class Plugin {
           !d.by || d.by === this.me
             ? '내 다른 기기(앱 등)'
             : `'${this.dir.name(d.by) ?? '다른 사람'}'`
-        await this.tell(
+        await this.say(
           `[이미 답함] '${got.from}'님의 질문은 ${where}에서 이미 답했습니다 — 이 질문에는 답하지 마세요.`,
           {
             kind: 'answered',
@@ -205,11 +226,12 @@ export class Plugin {
     }
     // 무응답 · 만료는 이 세션이 물은 것만(다른 세션 · 앱이 물은 것은 그쪽이 알린다)
     if (!fromThisSession && !mine) return
-    if (d.fromSid && !fromThisSession) return
+    // 다른 세션(다른 터미널 · 앱)이 물은 것은 그쪽이 알린다 — 이 세션이 물었으면 sid 가 바뀌었어도(세션을 새로 열었음) 알린다
+    if (d.fromSid && !fromThisSession && !mine) return
     const to = mine?.to ?? (d.assigned ? this.dir.name(d.assigned) : undefined) ?? '상대'
     const room = mine?.room ?? ''
     if (d.state === 'noack') {
-      await this.tell(
+      await this.say(
         `[무응답] '${to}'님이 아직 답하지 않았습니다 — 세션이 바쁘거나 자리를 비웠을 수 있습니다. 기다릴지, 다른 사람에게 물을지 사용자에게 알려 판단을 받으세요. 스스로 다시 보내지 마세요.`,
         { kind: 'noack', thread: d.thread, ...(room ? { room: this.roomLabel(room) } : {}) },
       )
@@ -218,7 +240,7 @@ export class Plugin {
         d.reason === 'recipient_removed'
           ? `'${to}'님이 방에서 빠져`
           : '보관 기한 안에 받을 곳이 없어'
-      await this.tell(
+      await this.say(
         `[보관 만료] ${why} '${to}'님에게 보낸 질문이 폐기되었습니다${mine?.preview ? `: ${mine.preview}` : ''} — 사용자에게 알리세요.`,
         { kind: 'expired', thread: d.thread, ...(room ? { room: this.roomLabel(room) } : {}) },
       )
@@ -233,7 +255,7 @@ export class Plugin {
       name = (await this.dir.detail(mine.room).catch(() => null))?.members.find(
         (x) => x.member === d.assigned,
       )?.name
-    await this.tell(
+    await this.say(
       `[담당 변경] '${mine.to}'에게 보낸 질문을 '${name ?? d.assigned}'님이 받았습니다.`,
       { kind: 'assigned', thread: d.thread, room: this.roomLabel(mine.room) },
     )
@@ -249,7 +271,7 @@ export class Plugin {
         : d.state === 'rejected'
           ? `[합의 거절] '${mine.to}'님이 합의 제안을 거절했습니다${d.reason ? ` — ${d.reason}` : ''}: ${mine.summary}`
           : `[합의 만료] '${mine.to}'님이 기한 안에 확인하지 않아 합의 제안이 만료되었습니다: ${mine.summary}`
-    await this.tell(text, { kind: 'agree_result', agree: d.agree })
+    await this.say(text, { kind: 'agree_result', agree: d.agree })
   }
 
   private async onRoomLost(d: EvData<'session.room_lost'>, sid: string | undefined): Promise<void> {
@@ -263,7 +285,7 @@ export class Plugin {
       archived: `[방 보관] '${name}' 방이 보관되었습니다 — 기록은 볼 수 있지만 새 메시지는 보낼 수 없습니다.`,
     }[d.reason]
     this.exportState()
-    await this.tell(text, { kind: 'system', room: name })
+    await this.say(text, { kind: 'system', room: name })
   }
 
   private async onRoomsChanged(d: EvData<'me.rooms_changed'>): Promise<void> {
@@ -284,7 +306,7 @@ export class Plugin {
         got = !!h?.held.includes(r.id)
         if (got) this.link.remember(this.link.session.held)
       }
-      await this.tell(
+      await this.say(
         got
           ? `[방 참가] '${r.name}' 방에 '${r.myName}' 으로 참가했습니다 — 이 세션이 그 방 메시지를 받습니다.`
           : `[방 참가] '${r.name}' 방에 '${r.myName}' 으로 참가했습니다 — 이 세션에서 받으려면 /meshwork:room ${r.name}`,
@@ -293,7 +315,7 @@ export class Plugin {
     }
     for (const id of d.removed) {
       if (held.has(id)) continue // 받던 방은 session.room_lost 가 알린다
-      await this.tell(`[방에서 빠짐] '${cfg.rooms?.[id]?.name ?? id}' 방에서 빠졌습니다.`)
+      await this.say(`[방에서 빠짐] '${cfg.rooms?.[id]?.name ?? id}' 방에서 빠졌습니다.`)
     }
     this.exportState()
   }
@@ -363,6 +385,8 @@ export class Plugin {
   }
 
   exportState(): void {
+    // 상태줄은 의존성 없이 sed 로 읽는다 — 글 칸에서 따옴표 · 역슬래시 · 쉼표 · 줄바꿈을 걷는다(잘못 잘리지 않게)
+    const plain = (t: string) => t.replace(/["\\,\r\n]/g, ' ')
     const s = this.link.state
     const held = this.link.session?.held ?? []
     const joined = this.dir.rooms.map((r) => r.id)
@@ -373,14 +397,14 @@ export class Plugin {
       team: this.host.isTeam,
       link: this.linkKind(),
       stopped: s.kind === 'stopped' ? (s.code ?? s.reason) : null,
-      held: held.map((r) => this.roomLabel(r)),
+      held: held.map((r) => plain(this.roomLabel(r))),
       empty: joined
         .filter((r) => !held.includes(r) && !this.heldElsewhere.includes(r))
-        .map((r) => this.roomLabel(r)),
+        .map((r) => plain(this.roomLabel(r))),
       queued: this.queued,
       off: this.off,
       contextChanged: this.link.contextChanged,
-      notice: this.noticeLine(),
+      notice: ((n) => (n ? plain(n) : null))(this.noticeLine()),
     })
   }
 

@@ -44,6 +44,14 @@ export function systemText(m: Message, ctx: TagContext): string {
   })
 }
 
+/**
+ * 본문 안의 `<channel …>` · `</channel>` 을 무력화한다 — 팀원이 본문에 꼬리표를 흉내 내 다른 사람 · 플러그인의 알림처럼
+ * 보이게 하지 못하게(꼬리표는 Claude Code 가 붙이는 바깥 것만 믿는다)
+ */
+export function defang(text: string): string {
+  return text.replace(/<(\/?)(channel)/gi, '‹$1$2')
+}
+
 export function tagMessage(m: Message, ctx: TagContext): Tagged {
   const meta: Record<string, string> = {}
   if (m.from) meta.from = m.from.name
@@ -64,5 +72,5 @@ export function tagMessage(m: Message, ctx: TagContext): Tagged {
   if (m.proposal) meta.proposal = m.proposal
   if (m.kind === 'reply' && m.expect === 'reply') meta.expect = 'reply'
   const content = m.kind === 'system' ? systemText(m, ctx) : (m.text ?? '')
-  return { content, meta }
+  return { content: defang(content), meta }
 }

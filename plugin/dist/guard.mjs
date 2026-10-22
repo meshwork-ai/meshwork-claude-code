@@ -1,5 +1,5 @@
 // core/guard.ts
-import { realpathSync } from "node:fs";
+import { readFileSync, realpathSync } from "node:fs";
 import { homedir as homedir2 } from "node:os";
 import { dirname, isAbsolute, join as join2, resolve, sep } from "node:path";
 
@@ -23,14 +23,29 @@ var FILE_TOOLS = {
   NotebookEdit: { field: "notebook_path", write: true },
   LS: { field: "path", write: false }
 };
-var SHELL_TOOLS = /* @__PURE__ */ new Set(["Bash", "PowerShell"]);
 var SEARCH_TOOLS = /* @__PURE__ */ new Set(["Grep", "Glob"]);
 var OWN_MCP = /^mcp__plugin_meshwork_meshwork__/;
+var BULK = /* @__PURE__ */ new Set([
+  "mv",
+  "cp",
+  "ln",
+  "tar",
+  "rsync",
+  "zip",
+  "ditto",
+  "scp",
+  "cpio",
+  "find",
+  "chmod",
+  "chown",
+  "rm"
+]);
 var str = (v) => typeof v === "string" ? v : void 0;
 function guard(input, o) {
   const tool = str(input.tool_name);
   const args = input.tool_input;
   if (!tool || !args || typeof args !== "object") return null;
+  if (OWN_MCP.test(tool)) return null;
   const a = args;
   const platform = o.platform ?? process.platform;
   const fold = platform === "darwin" || platform === "win32";
@@ -41,11 +56,11 @@ function guard(input, o) {
     return fold ? x.toLowerCase() : x;
   };
   const real = (p) => {
-    let cur = p;
+    let cur = resolve(p);
     const rest = [];
     for (; ; ) {
       try {
-        return norm(join2(realpathSync(cur), ...rest.reverse()));
+        return norm(join2(realpathSync(cur), ...rest.slice().reverse()));
       } catch {
         const parent = dirname(cur);
         if (parent === cur) return norm(p);
@@ -54,11 +69,11 @@ function guard(input, o) {
       }
     }
   };
-  const expand = (p) => {
-    const t = p.trim();
+  const expand = (p, base = cwd) => {
+    const t = p.trim().replace(/^\$\{?HOME\}?(?=[\\/]|$)/, "~");
     if (t === "~") return home;
     if (t.startsWith("~/") || t.startsWith("~\\")) return join2(home, t.slice(2));
-    return isAbsolute(t) ? t : resolve(cwd, t);
+    return isAbsolute(t) ? t : resolve(base, t);
   };
   const inside = (p, dir) => p === dir || p.startsWith(dir.endsWith(sep) ? dir : dir + sep);
   const asset = real(meshworkHome(o.env, home));
@@ -68,53 +83,135 @@ function guard(input, o) {
     join2(home, ".claude", "plugins", "marketplaces", "meshwork"),
     ...o.env.CLAUDE_PLUGIN_ROOT ? [o.env.CLAUDE_PLUGIN_ROOT] : []
   ].map(real);
-  const touchesAsset = (p) => inside(real(expand(p)), asset);
+  const reaches = (p, base = cwd) => {
+    const full = expand(p, base);
+    if (!/[*?[{]/.test(full)) return inside(real(full), asset);
+    return globReaches(full, asset, fold, real);
+  };
+  const parentOfAsset = (p, base = cwd) => {
+    const r = real(expand(p, base));
+    return r !== asset && inside(asset, r) && inside(r, claudeDir);
+  };
   const file = FILE_TOOLS[tool];
   if (file) {
     const p = str(a[file.field]);
     if (!p) return null;
+    if (reaches(p)) return REASON_ASSET;
     const target = real(expand(p));
-    if (inside(target, asset)) return REASON_ASSET;
     if (file.write && plugins.some((d) => inside(target, d))) return REASON_PLUGIN;
-    if (file.write && isSettings(target) && disablesHooks(writtenText(a))) return REASON_HOOKS;
+    if (file.write && isSettings(target) && disablesHooks(target, a)) return REASON_HOOKS;
     return null;
   }
   if (SEARCH_TOOLS.has(tool)) {
-    const root = real(expand(str(a.path) ?? cwd));
-    if (inside(root, asset)) return REASON_ASSET;
-    if (inside(asset, root) && inside(root, claudeDir)) return REASON_ASSET;
-    for (const pat of [str(a.pattern), str(a.glob)]) {
-      if (pat && mentionsAsset(pat, fold)) return REASON_ASSET;
-      if (tool === "Glob" && pat && isAbsolute(pat) && touchesAsset(staticPrefix(pat)))
-        return REASON_ASSET;
-    }
+    const root = str(a.path) ?? cwd;
+    if (reaches(root) || parentOfAsset(root)) return REASON_ASSET;
+    const globs = [str(a.glob), tool === "Glob" ? str(a.pattern) : void 0].filter(
+      (x) => !!x
+    );
+    for (const g of globs) if (reaches(g, expand(root))) return REASON_ASSET;
     return null;
   }
-  if (SHELL_TOOLS.has(tool)) {
-    const cmd = str(a.command);
-    if (!cmd) return null;
-    const c = fold ? cmd.toLowerCase() : cmd;
-    if (mentionsAsset(cmd, fold) || c.includes(asset)) return REASON_ASSET;
-    if (/plugins[\\/](cache|marketplaces)[\\/]meshwork\b/i.test(cmd)) return REASON_PLUGIN;
-    if (disablesHooks(cmd)) return REASON_HOOKS;
-    if (/\bplugin\s+(disable|uninstall|remove)\b[^\n;&|]*\bmeshwork\b/i.test(cmd))
-      return REASON_HOOKS;
-    return null;
+  const cmd = str(a.command);
+  if (cmd !== void 0) {
+    if (inside(real(cwd), asset)) return REASON_ASSET;
+    return shellVerdict(cmd, { reaches, parentOfAsset, expand, cwd, plugins, real, inside });
   }
-  if (tool.startsWith("mcp__") && !OWN_MCP.test(tool)) {
-    for (const v of strings(a)) {
-      if (mentionsAsset(v, fold)) return REASON_ASSET;
-      if (/^([a-z]:)?[\\/~]/i.test(v.trim()) && touchesAsset(v)) return REASON_ASSET;
-    }
+  for (const v of strings(a)) {
+    const t = v.trim();
+    if (/^([a-z]:)?[\\/~]|^\$\{?HOME\}?[\\/]/i.test(t) && !/\s/.test(t) && reaches(t))
+      return REASON_ASSET;
   }
   return null;
 }
-function mentionsAsset(text, fold) {
-  const t = fold ? text.toLowerCase() : text;
-  return /channels[\\/]+meshwork(?![\w-])/.test(t);
+function shellVerdict(cmd, x) {
+  if (hooksOffInText(cmd) && /--settings\b|(settings(\.local)?|managed-settings)\.json/i.test(cmd))
+    return REASON_HOOKS;
+  if (/\bplugin\s+(disable|uninstall|remove)\b[^\n;&|]*\bmeshwork\b/i.test(cmd)) return REASON_HOOKS;
+  const clean = cmd.replace(/\\(.)/g, "$1").replace(/["']/g, "").replace(/\$\{HOME\}|\$HOME/g, "~").replace(/([\\/])\.(?=[\\/])/g, "$1").replace(/([\\/]){2,}/g, "$1");
+  let base = x.cwd;
+  for (const part of clean.split(/&&|\|\||[;|&\n]/)) {
+    const words = part.trim().split(/\s+/).filter(Boolean);
+    if (!words.length) continue;
+    const verb = (words[0] ?? "").replace(/^.*[\\/]/, "");
+    const bulk = BULK.has(verb);
+    for (const w0 of words.slice(1)) {
+      const w = w0.replace(/^[^=~/\\$]*=/, "");
+      if (!bulk && !/[\\/~]|\.claude|meshwork|tokens\.json/i.test(w)) continue;
+      if (w.startsWith("-")) continue;
+      if (x.reaches(w, base)) return REASON_ASSET;
+      if (bulk && x.parentOfAsset(w, base)) return REASON_ASSET;
+      const r = x.real(x.expand(w, base));
+      if (x.plugins.some((d) => x.inside(r, d))) return REASON_PLUGIN;
+    }
+    if ((verb === "cd" || verb === "pushd") && words[1]) base = x.expand(words[1], base);
+  }
+  return null;
+}
+function globReaches(full, asset, fold, real) {
+  const split = (p) => p.split(/[\\/]+/).filter((s, i) => s || i === 0);
+  const g = split(fold ? full.toLowerCase() : full);
+  const first = g.findIndex((s) => /[*?[{]/.test(s));
+  const fixed = real(g.slice(0, first).join("/") || "/");
+  const pat = [...split(fixed), ...g.slice(first)];
+  const target = split(asset);
+  const seg = (s) => new RegExp(
+    `^${s.replace(/[.+^$()|\\]/g, "\\$&").replace(/\*/g, ".*").replace(/\?/g, ".").replace(/\{([^}]*)\}/g, (_m, alts) => `(${alts.split(",").join("|")})`)}$`
+  );
+  const walk = (i, j) => {
+    if (j >= target.length) return true;
+    if (i >= pat.length) return false;
+    if (pat[i] === "**") return walk(i + 1, j) || walk(i, j + 1);
+    return seg(pat[i]).test(target[j]) && walk(i + 1, j + 1);
+  };
+  return walk(0, 0);
 }
 function isSettings(p) {
   return /(^|[\\/])(settings(\.local)?|managed-settings)\.json$/i.test(p);
+}
+function offIn(obj) {
+  const o = obj && typeof obj === "object" ? obj : {};
+  const plugins = o.enabledPlugins && typeof o.enabledPlugins === "object" ? o.enabledPlugins : {};
+  return {
+    hooksOff: !!o.disableAllHooks || !!o.allowManagedHooksOnly,
+    pluginOff: plugins["meshwork@meshwork"] === false,
+    pluginOn: plugins["meshwork@meshwork"] === true
+  };
+}
+function disablesHooks(path, a) {
+  const read = () => {
+    try {
+      return readFileSync(path, "utf8");
+    } catch {
+      return null;
+    }
+  };
+  const parse = (t) => {
+    try {
+      return JSON.parse(t);
+    } catch {
+      return void 0;
+    }
+  };
+  let before = null;
+  let after;
+  if (typeof a.content === "string") after = a.content;
+  else {
+    before = read();
+    const edits = Array.isArray(a.edits) ? a.edits : [a];
+    let t = before ?? "";
+    for (const e of edits) {
+      if (typeof e.old_string !== "string" || typeof e.new_string !== "string") continue;
+      t = e.replace_all ? t.split(e.old_string).join(e.new_string) : t.replace(e.old_string, () => e.new_string);
+    }
+    after = t;
+  }
+  const was = before === null ? null : parse(before);
+  const now = parse(after);
+  if (now === void 0) return hooksOffInText(writtenText(a));
+  const n = offIn(now);
+  if (n.hooksOff || n.pluginOff) return true;
+  if (was !== void 0 && was !== null && offIn(was).pluginOn && !n.pluginOn) return true;
+  return false;
 }
 function writtenText(a) {
   const parts = [str(a.content), str(a.new_string)];
@@ -124,13 +221,13 @@ function writtenText(a) {
   }
   return parts.filter(Boolean).join("\n");
 }
-function disablesHooks(text) {
-  if (/disableAllHooks|allowManagedHooksOnly/i.test(text)) return true;
-  return /["']meshwork@meshwork["']\s*:\s*false/i.test(text);
-}
-function staticPrefix(pattern) {
-  const i = pattern.search(/[*?[{]/);
-  return i < 0 ? pattern : dirname(pattern.slice(0, i) + "x");
+function hooksOffInText(text) {
+  const t = text.replace(
+    /\\u([0-9a-fA-F]{4})/g,
+    (_m, h) => String.fromCharCode(parseInt(h, 16))
+  );
+  if (/disableAllHooks|allowManagedHooksOnly/i.test(t)) return true;
+  return /["']?meshwork@meshwork["']?\s*:\s*false/i.test(t);
 }
 function strings(v, depth = 0, out = []) {
   if (depth > 6 || out.length > 200) return out;

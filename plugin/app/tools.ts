@@ -252,6 +252,7 @@ export const TOOLS = [
       properties: {
         action: s('할 일(기본 login)', { enum: ['login', 'org', 'logout'] }),
         server: s('login: 서버 주소(처음 한 번 · 예: meshwork.example.com)'),
+        org: s('org: 붙을 조직 이름(선택 — 없으면 고르는 창)'),
       },
     },
   },
@@ -1054,7 +1055,7 @@ async function login(p: Plugin, a: Args): Promise<ToolResult> {
       if (p.link.state.kind === 'no_server' || p.link.state.kind === 'logged_out')
         return fail(notReadyText(p.link.state, { lang: p.lang }))
     }
-    const { org, orgs } = await p.link.switchOrg()
+    const { org, orgs } = await p.link.switchOrg(a.org)
     p.exportState()
     if (org)
       return ok(
@@ -1063,7 +1064,7 @@ async function login(p: Plugin, a: Args): Promise<ToolResult> {
     const active = orgs.filter((o) => o.membership === 'active')
     if (!active.length) return fail(notReadyText({ kind: 'no_org', orgs }, { lang: p.lang }))
     return ok(
-      `조직을 고르지 않았습니다 — 속한 조직: ${active.map((o) => `'${o.name}'`).join(', ')}`,
+      `${a.org ? `'${a.org}' 조직을 찾지 못했습니다` : '조직을 고르지 않았습니다'} — 속한 조직: ${active.map((o) => `'${o.name}'`).join(', ')} · /meshwork:login org <조직 이름> 으로 고르세요`,
     )
   }
   if (action !== 'login') return fail(`모르는 action: ${action} — login · org · logout`)

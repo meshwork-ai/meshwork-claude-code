@@ -142,17 +142,25 @@ mcp.setRequestHandler(CallToolRequestSchema, async (req) => {
 })
 
 const transport = new StdioServerTransport()
-/** 부모 세션이 끝나면(stdin 닫힘) 바로 끝낸다 — 남는 프로세스가 방을 붙잡지 않게 */
+/**
+ * 부모 세션이 끝나면(stdin 닫힘) 끝낸다 — 남는 프로세스가 방을 붙잡지 않게. 닫기 전에 처리한 데까지 ack 를 보내므로
+ * 소켓이 그것을 내보낼 틈을 잠깐 준다(바로 끝내면 마지막 ack 가 사라져 `--resume` 때 같은 메시지가 다시 들어간다)
+ */
+let closing = false
 const shutdown = (): void => {
+  if (closing) return
+  closing = true
   link.close()
-  process.exit(0)
+  setTimeout(() => process.exit(0), 300)
 }
 transport.onclose = shutdown
 process.stdin.on('end', shutdown)
 process.stdin.on('close', shutdown)
 
+// 세션에 넣기는 Claude Code 가 초기화를 마친 뒤부터(notifications/initialized) — 그 전의 알림은 버려질 수 있어
+// 넣은 것으로 치고 ack 하면 메시지를 잃는다(연결 계약 §2.2)
+mcp.oninitialized = () => plugin.mcpConnected()
 await mcp.connect(transport)
-plugin.mcpConnected()
 
 if (host.isTeam) {
   plugin.startHeartbeat()

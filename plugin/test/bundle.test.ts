@@ -2,12 +2,13 @@
  * 번들(dist/server.mjs)을 Claude Code 처럼 띄워 본다 — MCP 서버로 뜨나 · 도구 14개 · 일반 세션 / 팀 세션 / 로그인 전.
  * 서버와 실제로 주고받는 시나리오(S2 · S6~S11 · S16)는 서버 저장소의 통합 시험이 진짜 서버에 붙여 본다.
  */
+import { spawn } from 'node:child_process'
 import { mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { afterEach, describe, expect, it } from 'vitest'
 
-import { type Running, startPlugin, tempHome } from './harness'
+import { BUNDLE, type Running, startPlugin, tempHome } from './harness'
 
 const TOOLS = [
   'send',
@@ -157,5 +158,43 @@ describe('번들 — 처음 켤 때 team-relay 의 질문 배분을 가져온다
     writeFileSync(join(mw, 'config.json'), JSON.stringify({ routes: [], routesImported: true }))
     const again = await start({ team: false, home })
     expect((await again.call('route', { action: 'list' })).text).toContain('질문 배분이 비어')
+  })
+})
+
+describe('번들 — Claude Code 가 초기화를 마치기 전에는 세션에 넣지 않는다(넣은 것으로 치고 ack 하면 잃음)', () => {
+  it('initialize 뒤 initialized 전에는 채널 알림 없음 → initialized 뒤에 온다', async () => {
+    const home = tempHome()
+    const child = spawn(process.execPath, [BUNDLE], {
+      env: {
+        ...process.env,
+        HOME: home,
+        MESHWORK_GATEWAY: '1',
+        CLAUDE_CODE_SESSION_ID: 's',
+        MESHWORK_NUDGE_DELAY_MS: '10',
+        MESHWORK_HOME: '',
+        TEAM_RELAY_CONFIG: '',
+      },
+      stdio: ['pipe', 'pipe', 'pipe'],
+    })
+    let out = ''
+    child.stdout.on('data', (d: Buffer) => (out += d.toString('utf8')))
+    const send = (m: unknown) => child.stdin.write(`${JSON.stringify(m)}\n`)
+    send({
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'initialize',
+      params: {
+        protocolVersion: '2025-06-18',
+        capabilities: {},
+        clientInfo: { name: 't', version: '0' },
+      },
+    })
+    await new Promise((r) => setTimeout(r, 600))
+    expect(out).toContain('"id":1')
+    expect(out).not.toContain('notifications/claude/channel')
+    send({ jsonrpc: '2.0', method: 'notifications/initialized' })
+    await new Promise((r) => setTimeout(r, 600))
+    expect(out).toContain('notifications/claude/channel')
+    child.kill()
   })
 })
