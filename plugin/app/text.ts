@@ -2,38 +2,23 @@
  * 사람에게 보일 문구 — 서버의 코드 + 값은 `@meshwork-ai/i18n` 으로(명세 §13), 플러그인만의 안내는 여기.
  * 도구 결과는 에이전트가 읽고 사용자에게 옮기므로 **할 일 하나**를 분명히 적는다.
  */
-import {
-  ClosedError,
-  LoginStoppedError,
-  MeshworkError,
-  TimeoutError,
-} from '@meshwork-ai/client-core'
-import { formatCode, type Lang } from '@meshwork-ai/i18n'
+import { LoginStoppedError } from '@meshwork-ai/client-core'
+import { formatCode } from '@meshwork-ai/i18n'
+import { errorText as teamErrorText, type TextOptions } from '@meshwork-ai/team-tools'
 
 import type { LinkState } from './link'
 
-export interface TextOptions {
-  lang: Lang
-  name?: (id: string) => string | undefined
-}
+export { clip, shortTime, type TextOptions } from '@meshwork-ai/team-tools'
 
-/** 실패 → 한 줄 */
+/** 실패 → 한 줄 — 서버 오류는 공용(팀 도구와 같은 말), 로그인을 그만둔 사유만 여기 */
 export function errorText(e: unknown, o: TextOptions): string {
-  if (e instanceof MeshworkError) {
-    return formatCode('error', e.code, e.params, {
-      lang: o.lang,
-      ...(o.name ? { name: o.name } : {}),
-    })
-  }
-  if (e instanceof TimeoutError) return '서버가 제때 답하지 않았습니다 — 잠시 뒤 다시 해 보세요'
-  if (e instanceof ClosedError) return '서버와의 연결이 끊겼습니다 — 다시 붙는 대로 다시 해 보세요'
   if (e instanceof LoginStoppedError) {
     if (e.reason === 'denied') return '브라우저에서 로그인을 거절했습니다'
     if (e.reason === 'expired')
       return '로그인 코드가 만료됐습니다(10분) — /meshwork:login 으로 다시 시작하세요'
     return '로그인을 그만뒀습니다'
   }
-  return e instanceof Error ? e.message : String(e)
+  return teamErrorText(e, o)
 }
 
 /** 연결이 준비되지 않았을 때 — 무엇을 하면 되는지 */
@@ -85,18 +70,4 @@ export function stoppedText(
   }
   if (state.code) return formatCode('error', state.code, params, { lang: o.lang })
   return '서버가 연결을 받아 주지 않았습니다 — /meshwork:doctor 로 확인하세요'
-}
-
-/** ISO 시각 → `10/22 14:03` (그 기기 시간대) */
-export function shortTime(iso: string): string {
-  const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return iso
-  const p = (n: number) => String(n).padStart(2, '0')
-  return `${d.getMonth() + 1}/${d.getDate()} ${p(d.getHours())}:${p(d.getMinutes())}`
-}
-
-/** 긴 글 줄이기 — 목록 한 줄에 */
-export function clip(text: string, max = 120): string {
-  const one = text.replace(/\s+/g, ' ').trim()
-  return one.length > max ? `${one.slice(0, max - 1)}…` : one
 }

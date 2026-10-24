@@ -1,16 +1,17 @@
 {
   "name": "meshwork-plugin",
   "private": true,
-  "version": "0.2.0",
+  "version": "0.2.1",
   "scripts": {
     "build": "node check-version.ts && esbuild server.ts --bundle --platform=node --format=esm --target=node22 --outfile=dist/server.mjs --banner:js=\"import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);\" && esbuild guard.ts --bundle --platform=node --format=esm --target=node22 --outfile=dist/guard.mjs",
     "check-version": "node check-version.ts",
     "typecheck": "tsc --noEmit -p ."
   },
   "dependencies": {
-    "@meshwork-ai/client-core": "0.4.2",
-    "@meshwork-ai/i18n": "0.4.2",
-    "@meshwork-ai/protocol": "0.4.2",
+    "@meshwork-ai/client-core": "0.6.0",
+    "@meshwork-ai/i18n": "0.6.0",
+    "@meshwork-ai/protocol": "0.6.0",
+    "@meshwork-ai/team-tools": "0.1.0",
     "@modelcontextprotocol/sdk": "1.32.1"
   },
   "devDependencies": {

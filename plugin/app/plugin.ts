@@ -18,6 +18,7 @@ import { type Message, tagMessage } from '../core/tags'
 import type { Host } from '../host/types'
 import { type Link, type LinkState, type MyOrg } from './link'
 import { Directory, type RoomRef } from './names'
+import { newTeamState, type TeamState } from '@meshwork-ai/team-tools'
 import { errorText, notReadyText, stoppedText } from './text'
 
 /** 상태 하트비트 — 상태줄은 60초 넘게 낡으면 「플러그인 미동작」 으로 본다 */
@@ -28,16 +29,8 @@ const JOIN_WINDOW_MS = 10 * 60 * 1000
 export class Plugin {
   readonly dir: Directory
   lang: Lang = 'ko'
-  /** 받은 질문 — 대화 id → 보낸 사람 · 방 (가로채기 판단) */
-  readonly received = new Map<string, { from: string; room?: string }>()
-  /** 이 세션에서 답한 대화 */
-  readonly repliedHere = new Set<string>()
-  /** 다른 곳(앱 · 다른 기기)에서 이미 답한 대화 — reply 가 거절한다 */
-  readonly answeredElsewhere = new Set<string>()
-  /** 내가 물은 대화 — 대화 id → 받는 사람 이름 · 방 */
-  readonly asked = new Map<string, { to: string; room: string; preview: string }>()
-  /** 내가 제안한 합의 — 합의 id → 상대 · 요약 */
-  readonly proposed = new Map<string, { to: string; summary: string }>()
+  /** 팀 상태 — 받은 질문 · 답한 대화 · 다른 곳에서 답함 · 물은 질문 · 제안한 합의 · 열린 대화 허락(공용 대화 도구와 같이 봄) */
+  readonly team: TeamState = newTeamState()
   /** join 도구를 쓴 때 — 그 뒤 들어온 방은 이 세션이 받는다 */
   joinedAt = 0
   /** 보관된 내 메시지 수 · 다른 세션이 받는 방 — 하트비트의 diag.get */
@@ -45,8 +38,6 @@ export class Plugin {
   heldElsewhere: string[] = []
   /** 퇴근 중 */
   off = false
-  /** 사람이 「이 세션 동안」 남의 열린 대화 읽기를 허락한 방(명세 §10.7 — history 가 묻는다 · 새로 켜진 방은 다시 묻는다) */
-  readonly openRead = new Set<string>()
   orgNotice: { text: string; endsAt: string } | null = null
   serviceNotices: EvData<'service.notice'>['notices'] = []
   private sentName?: string
@@ -69,6 +60,22 @@ export class Plugin {
   /** MCP 가 붙은 뒤 — 그 전에 온 알림은 기다렸다가 넣는다 */
   mcpConnected(): void {
     this.ready()
+  }
+
+  get received() {
+    return this.team.received
+  }
+  get repliedHere() {
+    return this.team.repliedHere
+  }
+  get answeredElsewhere() {
+    return this.team.answeredElsewhere
+  }
+  get asked() {
+    return this.team.asked
+  }
+  get proposed() {
+    return this.team.proposed
   }
 
   get me(): string {

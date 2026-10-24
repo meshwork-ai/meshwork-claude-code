@@ -1,7 +1,7 @@
 /** 버전 · 클라이언트 이름 — 서버의 최소 버전 검사(명세 §4.1)와 진단에 쓰인다 */
 
 /** 플러그인 판 — `hello.client.version` · `Meshwork-Client` 헤더 · doctor (세 곳을 check-version.ts 가 맞춘다) */
-export const PLUGIN_VERSION = '0.2.0'
+export const PLUGIN_VERSION = '0.2.1'
 
 /** `hello.client.name` — 운영자가 최소 버전을 정하는 이름(운영 콘솔 「클라이언트」) */
 export const CLIENT_NAME = 'meshwork-plugin'

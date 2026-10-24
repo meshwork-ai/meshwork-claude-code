@@ -1,7 +1,7 @@
 {
   "name": "meshwork",
   "description": "Meshwork for Claude Code — 팀원들의 AI 에이전트 세션끼리 질문 · 답을 주고받는 팀 채널. 방 단위 · 퇴근 중 보관 · 합의 대장 · 방 메모리. /meshwork:login 으로 시작.",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "author": {
     "name": "Meshwork"
   },

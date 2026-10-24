@@ -1,5 +1,5 @@
 /**
- * 팀 도구 14개 — 이름은 앞머리 없이(3단계 ④: Claude Code 가 `mcp__plugin_meshwork_meshwork__` 를 붙인다).
+ * 팀 도구 14개 — 정의 · 대화 도구 7개의 처리는 공용 패키지(@meshwork-ai/team-tools — 앱과 같은 것), 나머지는 여기.
  *
  * | 도구 | 옛 team-relay | 요청(PROTO 6) |
  * |---|---|---|
@@ -18,265 +18,41 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import type { Session } from '@meshwork-ai/client-core'
-import { formatCode } from '@meshwork-ai/i18n'
+import {
+  type Args,
+  callConversationTool,
+  classifyRooms,
+  choiceLabel,
+  fail,
+  isConversationTool,
+  isResult,
+  ok,
+  renderRooms,
+  type RoomRef,
+  type TeamHost,
+  type ToolResult,
+} from '@meshwork-ai/team-tools'
 
 import { loadConfig, normalizeServer } from '../core/config'
 import { addRoute, labelOf, removeRoute, renderRoutes } from '../core/routes'
-import { choiceLabel, classifyRooms, renderRooms } from '../core/rooms'
 import { MIN_NODE, PLUGIN_VERSION } from '../core/version'
-import type { Candidate, RoomRef } from './names'
 import type { Plugin } from './plugin'
-import { clip, errorText, notReadyText, shortTime } from './text'
+import { errorText, notReadyText, shortTime } from './text'
 
-export type Args = Record<string, string | undefined>
-export interface ToolResult {
-  [key: string]: unknown
-  content: { type: 'text'; text: string }[]
-  isError?: boolean
-}
-
-const ok = (text: string): ToolResult => ({ content: [{ type: 'text', text }] })
-const fail = (text: string): ToolResult => ({
-  content: [{ type: 'text', text: `✗ ${text}` }],
-  isError: true,
-})
+export { TOOLS } from '@meshwork-ai/team-tools'
+export type { Args, ToolResult }
 
 /** 일반 세션에서도 쓰는 도구 — 서버와 상관없이 이 기기 안에서 끝난다 */
 const LOCAL_TOOLS = new Set(['doctor', 'route'])
 const NOT_TEAM =
   '이 세션에서는 Meshwork 를 쓸 수 없습니다 — meshwork-claude 로 켠 세션에서 다시 해 주세요'
 
-/** 처음부터 불러 둔다 — 대화 중간에 이름만 있는 도구를 고르지 못해 옛 도구를 쓰는 일을 막으려고(연결 계약 §4.4) */
-const ALWAYS = { 'anthropic/alwaysLoad': true }
-
-const s = (description: string, extra: Record<string, unknown> = {}) => ({
-  type: 'string',
-  description,
-  ...extra,
-})
-
-export const TOOLS = [
-  {
-    name: 'send',
-    description:
-      '팀원 · 역할에게 **새 대화**를 시작한다(사용자가 새로 묻거나 알리라고 할 때만). 받은 메시지에 답할 때는 send 가 아니라 reply 를 쓴다. 상대가 퇴근 · 오프라인이면 서버가 보관했다가 전한다.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        to: s('받는 팀원 이름(그 방에서의 이름) 또는 역할 이름'),
-        message: s('보낼 내용'),
-        room: s(
-          '방 이름(선택) — 같은 이름이 여러 방에 있으면 필요하다. 없으면 이 세션이 받는 방에서 찾는다',
-        ),
-        expect: s(
-          '답을 기대하나(선택, 기본 reply) — 알리기만("배포했어요")이면 none. none 이면 답이 없어도 무응답 알림이 나지 않는다',
-          { enum: ['reply', 'none'] },
-        ),
-      },
-      required: ['to', 'message'],
-    },
-  },
-  {
-    name: 'reply',
-    description:
-      '받은 팀 메시지에 답한다 — 꼬리표의 thread 만 넣으면 받는 사람과 방은 서버가 정한다. 답하면 상대의 무응답 알림이 풀린다. 공지(kind="notice")와 [이미 답함] 이 온 질문에는 답하지 않는다.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        thread: s('받은 메시지 꼬리표의 thread 값 그대로'),
-        message: s('답장 내용'),
-        expect: s(
-          '답을 기대하나(선택, 기본 none) — 답하려면 꼭 알아야 하는 것을 되물을 때만 reply(한 번)',
-          { enum: ['reply', 'none'] },
-        ),
-      },
-      required: ['thread', 'message'],
-    },
-  },
-  {
-    name: 'progress',
-    description:
-      '받은 질문에 바로 답하지 못할 때 진행 상황을 알린다 — 작업 중이면 working, 사용자에게 확인이 필요하면 asking. 보내지 않으면 묻는 쪽에 무응답이 뜬다.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        thread: s('받은 메시지 꼬리표의 thread 값'),
-        status: s('working = 처리 중 · asking = 사람(사용자)에게 확인 중', {
-          enum: ['working', 'asking'],
-        }),
-      },
-      required: ['thread', 'status'],
-    },
-  },
-  {
-    name: 'history',
-    description:
-      '내가 끼어 있는 지난 대화를 본다(남의 1:1 대화는 볼 수 없다 — 열린 방의 열린 대화는 「에이전트도 읽기」가 켜진 방에서 사용자가 확인 상자로 허락하면 thread · q 로 볼 수 있다). 예전에 물었던 것은 다시 묻기 전에 여기서 먼저 찾는다. thread 를 주면 그 대화의 메시지, q 를 주면 내용 찾기, 아니면 대화 목록.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        thread: s('대화 하나만(선택) — thr_…'),
-        q: s('찾을 말(선택) — 사람 · 내용'),
-        peer: s('상대 이름(선택)'),
-        room: s('방 이름(선택)'),
-        limit: s('몇 건(선택, 기본 20 · 최대 100)'),
-        before: s('이 id 보다 앞(선택) — 앞 결과 끝에 적힌 값으로 이전 페이지'),
-      },
-    },
-  },
-  {
-    name: 'memory',
-    description:
-      '방 메모리 — 방장 · 관리자가 방마다 정리한 짧은 사실(설명 1 + 내용 최대 3, 칸마다 150자). 세션을 켤 때 이미 들어 있으니 따로 볼 필요는 없다(view 는 지금 내용을 다시 볼 때). ' +
-      '사용자에게 물어 얻은 답이 **코드로는 알 수 없고 앞으로도 매번 같을 것 같으면** propose 로 제안한다 — 방장(없으면 관리자)이 승인하면 그 방 모든 세션에 들어간다. ' +
-      '방장이면 describe(설명) · add · edit · remove(내용)로 직접 고치고 approve · reject 로 제안을 처리한다.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        action: s('할 일', {
-          enum: ['view', 'propose', 'describe', 'add', 'edit', 'remove', 'approve', 'reject'],
-        }),
-        room: s('방 이름(선택 — 이 세션이 받는 방이 하나면 그 방)'),
-        text: s(
-          'propose · add · edit: 내용 한 문장(예: "금요일 배포 금지 — 주말 호출 방지") · describe: 방 설명(빈 글이면 지움)',
-        ),
-        pos: s('edit · remove: 내용 번호(1~3)'),
-        proposal_id: s('approve · reject: 제안 id — 꼬리표의 proposal(mpr_…)'),
-        replace: s('approve: 3칸이 다 찼을 때 이 제안으로 바꿀 내용 번호(1~3)'),
-        reason: s('reject: 거절 이유(제안한 사람에게 간다)'),
-      },
-      required: ['action'],
-    },
-  },
-  {
-    name: 'agree',
-    description:
-      '합의 대장 — 문답 끝에 인터페이스 · 결정에 합의하면 propose 로 기록을 제안한다(상대가 확인해야 확정 · 확정되면 방 전원이 본다). confirm · reject 는 나에게 온 제안(kind="agree") 처리 — 직전 대화와 맞을 때만 confirm. list 는 합의 보기.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        action: s('할 일', { enum: ['propose', 'confirm', 'reject', 'list'] }),
-        to: s('propose: 합의 상대 이름'),
-        summary: s('propose: 합의 한 문장(예: "source_ref 는 string[] · 빈 배열 허용")'),
-        details: s('propose: 자세히(선택 — 스키마 · 예시 등)'),
-        thread: s('propose: 이 합의가 나온 대화의 thread(선택)'),
-        room: s('propose · list: 방 이름(선택)'),
-        agree_id: s('confirm · reject: 꼬리표의 agree(agr_…)'),
-        reason: s('reject: 대화와 어떻게 다른지'),
-        peer: s('list: 상대 이름으로 거르기(선택)'),
-      },
-      required: ['action'],
-    },
-  },
-  {
-    name: 'status',
-    description:
-      '팀 연결 상태 — 서버 · 조직 · 나 · 이 세션이 받는 방 · 참가한 방 · 방 사람들의 상태 · 자동 답장. auto_reply 로 자동 답장을 켜고 끈다(끄면 답장 초안을 사용자에게 보이고 승인받은 뒤 보낸다).',
-    inputSchema: {
-      type: 'object',
-      properties: { auto_reply: s('자동 답장 켜기 · 끄기(선택)', { enum: ['on', 'off'] }) },
-    },
-  },
-  {
-    name: 'doctor',
-    description:
-      '팀 연결 자가 진단 — 플러그인 · 런타임 · 설정 · 로그인 · 서버 연결 · 받는 방 · 보관 메시지 · 규약을 ✓ · ✗ 로 점검하고 할 일을 적는다. "팀 메시지가 안 와요" 의 첫 진단.',
-    inputSchema: { type: 'object', properties: {} },
-  },
-  {
-    name: 'away',
-    description:
-      '퇴근 · 출근. 퇴근(on)이면 세션이 켜져 있어도 팀 메시지가 서버에 보관되고(보관 기한이 멈춤) 출근(off)하면 한꺼번에 온다. 퇴근 중에도 보내기는 된다.',
-    inputSchema: {
-      type: 'object',
-      properties: { mode: s('on = 퇴근 · off = 출근', { enum: ['on', 'off'] }) },
-      required: ['mode'],
-    },
-  },
-  {
-    name: 'room',
-    description:
-      '이 세션이 받을 방을 정한다(참가한 방 중에서). 방 이름 없이 부르면 방마다 누가 받는지 보여 주고 고르게 한다. 다른 세션이 받던 방을 가져오면 그 세션은 받지 못하게 되므로 사용자가 원할 때만 쓴다. --resume 으로 다시 켜면 받던 방을 되찾는다.',
-    inputSchema: {
-      type: 'object',
-      properties: { rooms: s('받을 방 이름(여럿이면 쉼표로 · 선택)') },
-    },
-  },
-  {
-    name: 'route',
-    description:
-      '질문 배분 — 팀 질문의 낱말이나 방을 이 기기의 세션에 맡겨 둔다. 내 소관이 아닌 질문은 ① action:"list" 로 보고 꼬리표의 room 과 같은 방이 등록돼 있으면(낱말보다 먼저) 그 세션에, 아니면 낱말이 맞는 세션에 SendMessage 로 위임한다 ② 등록이 없으면 send 로 그 사람 · 역할에게 넘기거나 사용자에게 확인한다 ③ 넘기지 못해 직접 답할 때는 그렇다고 밝힌다.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        action: s('할 일', { enum: ['list', 'add', 'remove'] }),
-        keywords: s('맞춰 볼 낱말(add · remove — keywords 또는 room 중 하나)'),
-        room: s('방 이름 — 이 방에서 온 질문은 지정한 세션으로(낱말보다 먼저)'),
-        session: s('맡을 세션 이름(add 에 필요)'),
-      },
-      required: ['action'],
-    },
-  },
-  {
-    name: 'join',
-    description:
-      '초대 링크로 방에 참가한다 — 링크를 브라우저로 열어 준다. 화면에서 조직 · 방 · 초대한 사람을 확인하고 사람이 [참가]를 눌러야 참가된다(플러그인이 대신 참가하지 않는다). 참가하면 이 세션이 그 방을 받는다.',
-    inputSchema: {
-      type: 'object',
-      properties: { link: s('초대 링크(https://<서버>/join/…) 또는 끝의 코드') },
-      required: ['link'],
-    },
-  },
-  {
-    name: 'owner',
-    description:
-      '방장 · 관리자 — 초대 링크 만들기(invite) · 살아 있는 링크 보기(invites) · 링크 취소(revoke) · 방에서 내보내기(kick — 그 방에서만) · 방 전원 공지(notice). 방 메모리는 memory 도구.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        action: s('할 일', { enum: ['invite', 'invites', 'revoke', 'kick', 'notice'] }),
-        room: s('방 이름'),
-        name: s('invite: 그 방에서 쓸 이름 제안(선택) · kick: 내보낼 사람 이름'),
-        invite: s('revoke: 초대 링크 번호(inv_… — invites 로 본다)'),
-        text: s('notice: 공지 내용'),
-      },
-      required: ['action', 'room'],
-    },
-  },
-  {
-    name: 'login',
-    description:
-      'Meshwork 로그인 · 조직 · 로그아웃. 로그인은 확인 코드를 보이고 브라우저를 연다 — 사람이 회사 계정으로 로그인하고 코드가 같은지 확인한 뒤 허용한다. 처음에는 서버 주소가 필요하다(다음부터 기억). org 는 붙을 조직 바꾸기, logout 은 이 기기 로그아웃.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        action: s('할 일(기본 login)', { enum: ['login', 'org', 'logout'] }),
-        server: s('login: 서버 주소(처음 한 번 · 예: meshwork.example.com)'),
-        org: s('org: 붙을 조직 이름(선택 — 없으면 고르는 창)'),
-      },
-    },
-  },
-].map((t) => ({ ...t, _meta: ALWAYS }))
-
 /** 도구 하나를 처리한다 — 던진 오류도 글로 바꾼다 */
 export async function callTool(p: Plugin, name: string, args: Args): Promise<ToolResult> {
   if (!p.host.isTeam && !LOCAL_TOOLS.has(name)) return fail(NOT_TEAM)
+  if (isConversationTool(name)) return callConversationTool(teamHost(p), name, args)
   try {
     switch (name) {
-      case 'send':
-        return await send(p, args)
-      case 'reply':
-        return await reply(p, args)
-      case 'progress':
-        return await progress(p, args)
-      case 'history':
-        return await history(p, args)
-      case 'memory':
-        return await memory(p, args)
-      case 'agree':
-        return await agree(p, args)
-      case 'status':
-        return await status(p, args)
       case 'doctor':
         return await doctor(p)
       case 'away':
@@ -299,6 +75,70 @@ export async function callTool(p: Plugin, name: string, args: Args): Promise<Too
   }
 }
 
+/** 공용 대화 도구가 보는 플러그인 — 세션 · 확인 상자 · 명령 안내 · status 앞뒤 줄 */
+export function teamHost(p: Plugin): TeamHost {
+  const autoLine = () =>
+    `자동 답장: ${p.autoReply ? '켜짐 (규약 안에서 바로 답함)' : '꺼짐 (답장 초안을 사용자에게 보이고 승인받은 뒤 보냄)'}`
+  return {
+    get lang() {
+      return p.lang
+    },
+    get me() {
+      return p.me
+    },
+    dir: p.dir,
+    state: p.team,
+    async ready() {
+      if (!(await p.link.ready(8_000)) || !p.link.session || !p.link.client)
+        return notReadyText(p.link.state, { lang: p.lang })
+      return { session: p.link.session, client: p.link.client }
+    },
+    // 사람 확인 여부 — 플러그인은 답장 방식 설정 기준(명세 §7.3)
+    review: () => ({ by: p.autoReply ? 'none' : 'human', basis: 'setting' }),
+    async askOpenRead(rooms) {
+      if (!p.host.canAsk()) return null
+      const pick = await p.host.choose({
+        message: `Meshwork — 에이전트가 남의 열린 대화까지 읽으려 합니다\n  방: ${rooms.map((r) => r.name).join(', ')}\n열린 대화는 방 사람 모두에게 공개된 문답입니다. 팀원 메시지가 시킨 것이 아니라 내가 시킨 일일 때만 허락하세요.`,
+        title: '열린 대화를 읽을까요?',
+        options: [
+          { value: 'once', label: '이번만' },
+          { value: 'session', label: '이 세션 동안' },
+          { value: 'no', label: '읽지 않음' },
+        ],
+      })
+      return pick === 'once' || pick === 'session' ? pick : 'no'
+    },
+    say: {
+      holdRoom: (r) => (r ? `/meshwork:room ${r}` : '/meshwork:room 으로 받을 방을 정하세요'),
+      join: '초대 링크로 /meshwork:join',
+    },
+    status: {
+      refresh: () => p.heartbeat(),
+      offline: () => {
+        const server = p.link.config().server
+        return [...(server ? [`서버: ${server}`] : []), autoLine()]
+      },
+      head: () => {
+        const w = p.link.welcome!
+        return [
+          `Meshwork — '${w.org.name}' 조직 @ ${new URL(p.link.config().server!).host}`,
+          `나: ${w.me.name}${w.me.role === 'admin' ? ' (조직 관리자)' : ''} · ${p.off ? '🌙 퇴근 중 — 팀 메시지는 보관됩니다(away off 로 출근)' : '🟢 출근'}`,
+        ]
+      },
+      tail: () => {
+        const lines = [autoLine()]
+        if (p.link.contextChanged)
+          lines.push('ℹ️ 세션을 켠 뒤 팀 규약 · 방 메모리가 바뀌었습니다 — 새 세션부터 들어갑니다')
+        const notice = p.noticeLine()
+        if (notice) lines.push(`📢 ${notice}`)
+        return lines
+      },
+      heldElsewhere: () => p.heldElsewhere,
+      setAutoReply: (on) => p.link.save({ autoReply: on }),
+    },
+  }
+}
+
 // ── 공통 ────────────────────────────────────────────────────────
 
 /** 붙어 있고 세션이 열렸으면 그 세션 — 아니면 할 일 한 줄 */
@@ -307,40 +147,6 @@ async function ready(p: Plugin): Promise<Session | ToolResult> {
     return fail(notReadyText(p.link.state, { lang: p.lang }))
   }
   return p.link.session
-}
-
-const isResult = (x: unknown): x is ToolResult => !!x && typeof x === 'object' && 'content' in x
-
-/** 사람 확인 여부 — 플러그인은 답장 방식 설정 기준(명세 §7.3) */
-function review(p: Plugin): { by: 'human' | 'none'; basis: 'setting' } {
-  return { by: p.autoReply ? 'none' : 'human', basis: 'setting' }
-}
-
-/** 방 고르기 — 이름을 주면 그 방, 아니면 이 세션이 받는 방이 하나일 때 그 방 */
-function pickRoom(p: Plugin, session: Session, input: string | undefined): RoomRef | ToolResult {
-  if (input) {
-    const r = p.dir.room(input)
-    return (
-      r ??
-      fail(
-        `'${input}' 방에 참가하지 않았습니다 — status 로 참가한 방을 보세요(새 방은 초대 링크로 /meshwork:join)`,
-      )
-    )
-  }
-  const held = session.held.map((id) => p.dir.room(id)).filter((r): r is RoomRef => !!r)
-  if (held.length === 1) return held[0]!
-  if (!held.length)
-    return fail(
-      '이 세션이 받는 방이 없습니다 — room 을 넣거나 /meshwork:room 으로 받을 방을 정하세요',
-    )
-  return fail(
-    `어느 방인지 room 을 넣어 주세요 — 이 세션이 받는 방: ${held.map((r) => r.name).join(', ')}`,
-  )
-}
-
-function limitOf(v: string | undefined, dflt = 20): number {
-  const n = Number(v)
-  return Number.isInteger(n) && n > 0 ? Math.min(n, 100) : dflt
 }
 
 /** 그 방 구성원 이름 → id (못 찾으면 글) */
@@ -355,521 +161,7 @@ async function memberIn(
     : fail(`'${room.name}' 방에 '${name}'님이 없습니다 — status 로 방 사람을 보세요`)
 }
 
-/** 참가한 방 어디서든 이름 → 구성원 id(첫 번째) */
-async function memberAnywhere(p: Plugin, name: string): Promise<string | undefined> {
-  for (const r of p.dir.rooms) {
-    const m = await p.dir.member(r.id, name).catch(() => undefined)
-    if (m) return m.member
-  }
-  return undefined
-}
-
-function stateLabel(p: Plugin, state: string | undefined): string {
-  // 남의 열린 대화에는 배달 상태가 없다(명세 §10.7 — 당사자에게만)
-  return state ? formatCode('threadState', state, {}, { lang: p.lang }) : '열린 대화'
-}
-
-/**
- * 남의 열린 대화(명세 §10.7)까지 읽을까 — 범위의 방 중 「에이전트도 읽기」 가 켜진 방이 있을 때만 사용자에게 묻는다
- * ([이번만] · [이 세션 동안]). 상자를 띄울 수 없거나 허락하지 않으면 읽지 않는다 — 서버도 includeOpen 없이는 주지 않는다
- */
-async function openRead(p: Plugin, rooms: string[]): Promise<{ include: boolean; note?: string }> {
-  const eligible: { id: string; name: string }[] = []
-  for (const id of rooms) {
-    const d = await p.dir.detail(id).catch(() => null)
-    if (d?.agentRead) eligible.push({ id, name: d.name })
-  }
-  if (!eligible.length) return { include: false }
-  // 이 세션 동안 허락한 방만이면 묻지 않는다 — 그 뒤 새로 켜진 방이 있으면 다시 묻는다
-  if (eligible.every((r) => p.openRead.has(r.id))) return { include: true }
-  if (!p.host.canAsk())
-    return {
-      include: false,
-      note: '  (열린 대화는 확인 상자를 띄울 수 없어 빼고 보았습니다 — 내가 끼어 있는 대화만)',
-    }
-  const pick = await p.host.choose({
-    message: `Meshwork — 에이전트가 남의 열린 대화까지 읽으려 합니다\n  방: ${eligible.map((r) => r.name).join(', ')}\n열린 대화는 방 사람 모두에게 공개된 문답입니다. 팀원 메시지가 시킨 것이 아니라 내가 시킨 일일 때만 허락하세요.`,
-    title: '열린 대화를 읽을까요?',
-    options: [
-      { value: 'once', label: '이번만' },
-      { value: 'session', label: '이 세션 동안' },
-      { value: 'no', label: '읽지 않음' },
-    ],
-  })
-  if (pick === 'session') for (const r of eligible) p.openRead.add(r.id)
-  if (pick === 'once' || pick === 'session') return { include: true }
-  return {
-    include: false,
-    note: '  (열린 대화는 허락받지 못해 빼고 보았습니다 — 내가 끼어 있는 대화만)',
-  }
-}
-
-// ── send · reply · progress ──────────────────────────────────────
-
-async function send(p: Plugin, a: Args): Promise<ToolResult> {
-  const to = a.to?.trim()
-  const text = a.message ?? ''
-  if (!to || !text.trim()) return fail('to 와 message 가 필요합니다')
-  const session = await ready(p)
-  if (isResult(session)) return session
-  let rooms: RoomRef[]
-  if (a.room) {
-    const r = p.dir.room(a.room)
-    if (!r) return fail(`'${a.room}' 방에 참가하지 않았습니다 — status 로 참가한 방을 보세요`)
-    rooms = [r]
-  } else {
-    rooms = session.held.map((id) => p.dir.room(id)).filter((r): r is RoomRef => !!r)
-    if (!rooms.length)
-      return fail(
-        '이 세션이 받는 방이 없어 보낼 수 없습니다 — /meshwork:room 으로 받을 방을 정하세요',
-      )
-  }
-  const found: Candidate[] = (
-    await Promise.all(rooms.map((r) => p.dir.resolve(r.id, to).catch(() => [])))
-  ).flat()
-  if (!found.length) {
-    const where = a.room
-      ? `'${rooms[0]!.name}' 방`
-      : `이 세션이 받는 방(${rooms.map((r) => r.name).join(', ')})`
-    return fail(`${where}에서 '${to}'(사람 · 역할)을 찾지 못했습니다 — status 로 방 사람을 보세요`)
-  }
-  const inRooms = [...new Set(found.map((c) => c.room))]
-  if (inRooms.length > 1) {
-    return fail(
-      `'${to}'이(가) 여러 방에 있습니다(${inRooms.map((r) => p.dir.roomName(r)).join(', ')}) — 어느 방인지 사용자에게 확인한 뒤 room 을 넣어 다시 보내세요`,
-    )
-  }
-  if (found.length > 1) {
-    const list = found
-      .map((c) => `${c.kind === 'role' ? '역할' : '구성원'} '${c.name}'`)
-      .join(' · ')
-    return fail(`'${to}'이(가) 여럿입니다(${list}) — 사용자에게 누구인지 확인하세요`)
-  }
-  const c = found[0]!
-  if (c.kind === 'member' && c.id === p.me) return fail('나 자신에게는 보낼 수 없습니다')
-  const roomName = p.dir.roomName(c.room) ?? c.room
-  if (!session.held.includes(c.room)) {
-    return fail(
-      `이 세션은 '${roomName}' 방을 받지 않아 그 방으로 보낼 수 없습니다 — 사용자가 원하면 /meshwork:room ${roomName}`,
-    )
-  }
-  const expect = a.expect === 'none' ? 'none' : 'reply'
-  const r = await session.call('message.send', {
-    room: c.room,
-    to: { kind: c.kind, id: c.id },
-    text,
-    expect,
-    review: review(p),
-  })
-  const label = c.kind === 'role' ? `'${c.name}' 역할` : `'${c.name}'님`
-  if (expect === 'reply')
-    p.asked.set(r.thread, { to: c.name, room: c.room, preview: clip(text, 60) })
-  const lines = [`✓ ${label}에게 보냈습니다 (방 ${roomName} · 대화 ${r.thread})`]
-  // 서버가 정한 사실로(방 목록 사본은 늦을 수 있다)
-  if (r.open) lines.push(`  👁 '${roomName}'은 열린 방 — 이 대화는 방 사람 모두에게 보입니다`)
-  if (c.kind === 'role') {
-    if (r.assigned) lines.push(`  ↳ '${p.dir.name(r.assigned) ?? r.assigned}'님이 받았습니다`)
-    else lines.push('  ↳ 지금 답할 수 있는 사람이 없어 보관했습니다 — 생기면 그 사람에게 갑니다')
-  } else if (r.state === 'queued')
-    lines.push('  지금은 받을 곳이 없어 서버가 보관했습니다 — 받을 수 있게 되면 전합니다')
-  if (r.note) lines.push(`  ${formatCode('note', r.note, {}, { lang: p.lang })}`)
-  if (r.note === 'open_thread') {
-    const open = [...p.received.entries()].find(([, v]) => v.from === c.name)
-    lines.push(
-      `  💡 지금 보낸 것이 그 질문의 답이라면 reply(thread: "${open?.[0] ?? '받은 메시지의 thread'}")로 다시 보내세요 — 지금 보낸 것은 새 대화로 갔습니다.`,
-    )
-  }
-  return ok(lines.join('\n'))
-}
-
-async function reply(p: Plugin, a: Args): Promise<ToolResult> {
-  const thread = a.thread?.trim()
-  if (!thread)
-    return fail(
-      'thread 가 필요합니다 — 받은 메시지 꼬리표의 thread 값을 그대로 넣으세요. 새 대화는 send 입니다',
-    )
-  if (!(a.message ?? '').trim()) return fail('message 가 필요합니다')
-  if (p.answeredElsewhere.has(thread)) {
-    return fail(
-      '이 질문은 다른 곳(앱 등)에서 이미 답했습니다 — 답하지 않습니다. 보충할 말이 있으면 사용자에게 확인하세요',
-    )
-  }
-  const session = await ready(p)
-  if (isResult(session)) return session
-  const expect = a.expect === 'reply' ? 'reply' : 'none'
-  const r = await session.call('message.reply', {
-    thread,
-    text: a.message!,
-    expect,
-    review: review(p),
-  })
-  p.repliedHere.add(thread)
-  const got = p.received.get(thread)
-  // 되물었으면 이번 주기는 내가 묻는 쪽 — 무응답 · 만료 알림을 받는다
-  if (expect === 'reply')
-    p.asked.set(thread, {
-      to: got?.from ?? '상대',
-      room: got?.room ?? '',
-      preview: clip(a.message!, 60),
-    })
-  const lines = [`✓ 답장을 보냈습니다${got ? ` ('${got.from}'님에게)` : ''} (대화 ${thread})`]
-  if (r.open) lines.push('  👁 열린 대화 — 이 답장은 방 사람 모두에게 보입니다')
-  if (r.state === 'queued')
-    lines.push('  상대가 지금 받을 수 없어 서버가 보관했습니다 — 받을 수 있게 되면 전합니다')
-  return ok(lines.join('\n'))
-}
-
-async function progress(p: Plugin, a: Args): Promise<ToolResult> {
-  const thread = a.thread?.trim()
-  if (!thread) return fail('thread 가 필요합니다')
-  if (a.status !== 'working' && a.status !== 'asking')
-    return fail('status 는 working 또는 asking 입니다')
-  const session = await ready(p)
-  if (isResult(session)) return session
-  await session.call('thread.status', { thread, status: a.status })
-  return ok(
-    a.status === 'working'
-      ? `✓ '처리 중' 으로 알렸습니다 (대화 ${thread}) — 묻는 쪽의 무응답 시계가 멈춥니다`
-      : `✓ '사람에게 확인 중' 으로 알렸습니다 (대화 ${thread}) — 사용자에게 확인한 뒤 reply 로 답하세요`,
-  )
-}
-
-// ── history ──────────────────────────────────────────────────────
-
-async function history(p: Plugin, a: Args): Promise<ToolResult> {
-  const session = await ready(p)
-  if (isResult(session)) return session
-  const c = p.link.client!
-  const limit = limitOf(a.limit)
-  const name = (id: string) => p.dir.name(id) ?? id
-  const msgLine = (m: {
-    ts: string
-    room: string | null
-    from: { name: string } | null
-    kind: string
-    text?: string
-    code?: string
-    thread: string | null
-    msg: string
-    open?: boolean | undefined
-  }) =>
-    `  [${shortTime(m.ts)}]${m.open ? ' 👁' : ''}${m.room ? ` [${p.dir.roomName(m.room) ?? m.room}]` : ''} ${m.from?.name ?? '서버'}${m.kind === 'reply' ? ' ↩' : ''}: ${clip(m.text ?? m.code ?? '', 200)}${m.thread ? ` (${m.thread})` : ''}`
-  if (a.thread) {
-    const get = (includeOpen: boolean) =>
-      c.call('thread.get', {
-        thread: a.thread!.trim(),
-        limit,
-        ...(a.before ? { before: a.before } : {}),
-        ...(includeOpen ? { includeOpen: true } : {}),
-      })
-    // 내 대화가 아니면 남의 열린 대화일 수 있다 — 그때만 사용자에게 묻고 다시(§10.7)
-    let r: Awaited<ReturnType<typeof get>>
-    try {
-      r = await get(false)
-    } catch (e) {
-      if ((e as { code?: string }).code !== 'thread.unknown') throw e
-      const allow = await openRead(
-        p,
-        p.dir.rooms.map((x) => x.id),
-      )
-      if (!allow.include) {
-        if (!allow.note) throw e
-        return fail(`그 대화를 볼 수 없습니다 — 내 대화가 아닙니다\n${allow.note}`)
-      }
-      r = await get(true)
-    }
-    const t = r.thread
-    const head = `대화 ${t.id}${t.open ? ' 👁' : ''} — ${name(t.asker)} → ${t.to.kind === 'member' ? name(t.to.id) : t.to.kind === 'role' ? `역할 ${name(t.to.id)}` : '방 전체'} · ${stateLabel(p, t.state)}`
-    const lines = [head, ...r.messages.map(msgLine)]
-    if (r.more && r.messages.length)
-      lines.push(`  … 앞 메시지가 더 있습니다 — before: "${r.messages[0]!.msg}"`)
-    return ok(lines.join('\n'))
-  }
-  const roomRef = a.room ? p.dir.room(a.room) : undefined
-  if (a.room && !roomRef) return fail(`'${a.room}' 방에 참가하지 않았습니다`)
-  if (a.q) {
-    const allow = await openRead(p, roomRef ? [roomRef.id] : p.dir.rooms.map((x) => x.id))
-    const r = await c.call('thread.search', {
-      q: a.q,
-      limit,
-      ...(roomRef ? { room: roomRef.id } : {}),
-      ...(a.before ? { before: a.before } : {}),
-      ...(allow.include ? { includeOpen: true } : {}),
-    })
-    if (!r.hits.length)
-      return ok(
-        (r.more && r.next
-          ? `맞는 것이 아직 없습니다 — 더 찾으려면 before: "${r.next}"`
-          : '맞는 메시지가 없습니다') + (allow.note ? `\n${allow.note}` : ''),
-      )
-    const lines = [`'${a.q}' 찾기 (${r.hits.length}건):`, ...r.hits.map(msgLine)]
-    if (r.more && r.next) lines.push(`  … 더 있습니다 — before: "${r.next}"`)
-    if (allow.note) lines.push(allow.note)
-    return ok(lines.join('\n'))
-  }
-  const peer = a.peer ? await memberAnywhere(p, a.peer) : undefined
-  if (a.peer && !peer) return fail(`'${a.peer}'님을 참가한 방에서 찾지 못했습니다`)
-  const r = await c.call('thread.list', {
-    box: 'all',
-    limit,
-    ...(roomRef ? { room: roomRef.id } : {}),
-    ...(peer ? { peer } : {}),
-    ...(a.before ? { before: a.before } : {}),
-  })
-  if (!r.threads.length) return ok('조건에 맞는 대화가 없습니다')
-  for (const t of r.threads) await p.dir.detail(t.room).catch(() => null)
-  const lines = r.threads.map((t) => {
-    const to =
-      t.to.kind === 'member'
-        ? name(t.to.id)
-        : t.to.kind === 'role'
-          ? `역할 ${name(t.to.id)}`
-          : '방 전체'
-    const last = t.last ? ` — ${t.last.from?.name ?? '서버'}: ${clip(t.last.text ?? '', 120)}` : ''
-    return `  [${shortTime(t.sentAt)}] [${p.dir.roomName(t.room) ?? t.room}] ${name(t.asker)} → ${to} · ${stateLabel(p, t.state)}${last} (${t.id})`
-  })
-  const out = [`지난 대화 (${r.threads.length}건):`, ...lines]
-  if (r.more) out.push(`  … 더 있습니다 — before: "${r.threads[r.threads.length - 1]!.id}"`)
-  return ok(out.join('\n'))
-}
-
-// ── memory ───────────────────────────────────────────────────────
-
-async function memory(p: Plugin, a: Args): Promise<ToolResult> {
-  const session = await ready(p)
-  if (isResult(session)) return session
-  const c = p.link.client!
-  const action = a.action ?? ''
-  if (action === 'approve' || action === 'reject') {
-    if (!a.proposal_id) return fail('proposal_id 가 필요합니다 — 제안 꼬리표의 proposal 값입니다')
-    const replace = a.replace ? Number(a.replace) - 1 : undefined
-    if (replace !== undefined && !(Number.isInteger(replace) && replace >= 0 && replace <= 2))
-      return fail('replace 는 1~3 중 하나입니다')
-    await session.call('memory.resolve', {
-      proposal: a.proposal_id.trim(),
-      result: action,
-      ...(replace !== undefined ? { replace } : {}),
-      ...(a.reason ? { reason: a.reason } : {}),
-    })
-    return ok(
-      action === 'approve'
-        ? '✓ 제안을 방 메모리에 넣었습니다 — 제안한 사람에게 알렸습니다'
-        : '✓ 제안을 거절했습니다 — 제안한 사람에게 이유와 함께 알렸습니다',
-    )
-  }
-  const room = pickRoom(p, session, a.room)
-  if (isResult(room)) return room
-  if (action === 'propose') {
-    if (!a.text?.trim()) return fail('text(제안할 한 문장)가 필요합니다')
-    const r = await session.call('memory.propose', { room: room.id, text: a.text })
-    return ok(
-      `✓ '${room.name}' 방 메모리에 제안했습니다 (${r.proposal}) — ${r.to === 'owners' ? '방장에게 갔습니다' : '방장이 없어 조직 관리자가 콘솔에서 처리합니다'}. 72시간 안에 처리되지 않으면 폐기됩니다.`,
-    )
-  }
-  const cur = await c.call('memory.get', { room: room.id })
-  if (action === 'view') {
-    const lines = [renderMemory(p, room.name, cur)]
-    if (cur.proposals?.length) {
-      lines.push('', '대기 중인 제안:')
-      for (const x of cur.proposals)
-        lines.push(`  ${x.id} · ${p.dir.name(x.by) ?? x.by} · ${shortTime(x.ts)}: ${x.text}`)
-    }
-    return ok(lines.join('\n'))
-  }
-  const items = cur.items.slice()
-  let desc = cur.desc
-  const pos = Number(a.pos)
-  const inRange = Number.isInteger(pos) && pos >= 1 && pos <= items.length
-  if (action === 'describe') desc = a.text ?? ''
-  else if (action === 'add') {
-    if (!a.text?.trim()) return fail('text 가 필요합니다')
-    items.push(a.text)
-  } else if (action === 'edit') {
-    if (!inRange) return fail(`pos 는 1~${items.length} 중 하나입니다`)
-    if (!a.text?.trim()) return fail('text 가 필요합니다')
-    items[pos - 1] = a.text
-  } else if (action === 'remove') {
-    if (!inRange) return fail(`pos 는 1~${items.length} 중 하나입니다`)
-    items.splice(pos - 1, 1)
-  } else return fail(`모르는 action: ${action}`)
-  const r = await session.call('memory.set', { room: room.id, desc, items, rev: cur.rev })
-  return ok(
-    `✓ '${room.name}' 방 메모리를 고쳤습니다 (판 ${r.rev}) — 그 방의 새 세션부터 들어갑니다\n\n${renderMemory(p, room.name, { ...cur, desc, items })}`,
-  )
-}
-
-function renderMemory(
-  p: Plugin,
-  roomName: string,
-  m: { desc: string; items: string[]; updatedAt: string | null; updatedBy: string | null },
-): string {
-  if (!m.desc && !m.items.length) return `'${roomName}' 방 메모리: 비어 있습니다`
-  const by = m.updatedBy ? ` — ${p.dir.name(m.updatedBy) ?? m.updatedBy}` : ''
-  const lines = [
-    `'${roomName}' 방 메모리${m.updatedAt ? ` (${shortTime(m.updatedAt)} 수정${by})` : ''}`,
-  ]
-  if (m.desc) lines.push(`설명  ${m.desc}`)
-  m.items.forEach((t, i) => lines.push(`${i + 1}. ${t}`))
-  if (m.items.length < 3) lines.push(`(내용 ${m.items.length}/3)`)
-  return lines.join('\n')
-}
-
-// ── agree ────────────────────────────────────────────────────────
-
-async function agree(p: Plugin, a: Args): Promise<ToolResult> {
-  const session = await ready(p)
-  if (isResult(session)) return session
-  const c = p.link.client!
-  switch (a.action) {
-    case 'propose': {
-      if (!a.to?.trim() || !a.summary?.trim())
-        return fail('propose 에는 to 와 summary 가 필요합니다')
-      let roomId = a.thread
-        ? (p.received.get(a.thread)?.room ?? p.asked.get(a.thread)?.room)
-        : undefined
-      if (a.thread && !roomId)
-        roomId = (await c.call('thread.get', { thread: a.thread, limit: 1 }).catch(() => null))
-          ?.thread.room
-      const room = roomId ? p.dir.room(roomId) : pickRoom(p, session, a.room)
-      if (!room) return fail('그 대화의 방을 찾지 못했습니다 — room 을 넣어 주세요')
-      if (isResult(room)) return room
-      const who = await memberIn(p, room, a.to)
-      if (isResult(who)) return who
-      const r = await session.call('agree.propose', {
-        room: room.id,
-        to: who.id,
-        summary: a.summary,
-        ...(a.details ? { details: a.details } : {}),
-        ...(a.thread ? { thread: a.thread } : {}),
-      })
-      p.proposed.set(r.agree, { to: who.name, summary: a.summary })
-      return ok(
-        `✓ '${who.name}'님에게 합의를 제안했습니다 (${r.agree}) — 확인하면 '${room.name}' 방 전원이 보는 합의 대장에 기록됩니다. 72시간 안에 확인이 없으면 만료됩니다`,
-      )
-    }
-    case 'confirm':
-    case 'reject': {
-      if (!a.agree_id) return fail('agree_id 가 필요합니다 — 제안 꼬리표의 agree 값입니다')
-      const r = await session.call('agree.resolve', {
-        agree: a.agree_id.trim(),
-        result: a.action,
-        ...(a.reason ? { reason: a.reason } : {}),
-      })
-      return ok(
-        r.state === 'confirmed'
-          ? `✓ 합의를 확정했습니다 (${r.agree}) — 방 전원이 봅니다`
-          : `✓ 합의 제안을 거절했습니다 (${r.agree}) — 제안한 사람에게 이유가 갑니다`,
-      )
-    }
-    case 'list': {
-      const roomRef = a.room ? p.dir.room(a.room) : undefined
-      if (a.room && !roomRef) return fail(`'${a.room}' 방에 참가하지 않았습니다`)
-      const peer = a.peer ? await memberAnywhere(p, a.peer) : undefined
-      if (a.peer && !peer) return fail(`'${a.peer}'님을 찾지 못했습니다`)
-      const r = await c.call('agree.list', {
-        ...(roomRef ? { room: roomRef.id } : {}),
-        ...(peer ? { peer } : {}),
-        limit: 50,
-      })
-      if (!r.entries.length) return ok('합의가 없습니다')
-      for (const e of r.entries) await p.dir.detail(e.room).catch(() => null)
-      const n = (id: string) => p.dir.name(id) ?? id
-      const label: Record<string, string> = {
-        confirmed: '확정',
-        pending: '확인 대기',
-        rejected: '거절',
-        expired: '만료',
-      }
-      const lines = r.entries.map(
-        (e) =>
-          `  [${shortTime(e.ts)}] [${p.dir.roomName(e.room) ?? e.room}] ${n(e.proposer)} → ${n(e.to)} · ${label[e.state] ?? e.state}: ${e.summary}${e.details ? ` — ${clip(e.details, 160)}` : ''} (${e.id})`,
-      )
-      return ok(
-        [`합의 (${r.entries.length}건 — 확정은 방 전원 · 나머지는 당사자만 보임):`, ...lines].join(
-          '\n',
-        ),
-      )
-    }
-    default:
-      return fail(`모르는 action: ${a.action ?? '(없음)'} — propose · confirm · reject · list`)
-  }
-}
-
-// ── status · away · room ─────────────────────────────────────────
-
-const PRESENCE: Record<string, string> = { online: '🟢', away: '🟡', off: '🌙', offline: '⚪' }
-
-async function status(p: Plugin, a: Args): Promise<ToolResult> {
-  if (a.auto_reply === 'on' || a.auto_reply === 'off')
-    p.link.save({ autoReply: a.auto_reply === 'on' })
-  else if (a.auto_reply) return fail(`auto_reply 는 on · off 입니다: ${a.auto_reply}`)
-  const cfg = p.link.config()
-  const autoLine = `자동 답장: ${p.autoReply ? '켜짐 (규약 안에서 바로 답함)' : '꺼짐 (답장 초안을 사용자에게 보이고 승인받은 뒤 보냄)'}`
-  const session = await ready(p)
-  if (isResult(session)) {
-    return ok(
-      [
-        `✗ ${session.content[0]!.text.replace(/^✗ /, '')}`,
-        cfg.server ? `서버: ${cfg.server}` : null,
-        autoLine,
-      ]
-        .filter(Boolean)
-        .join('\n'),
-    )
-  }
-  const c = p.link.client!
-  const w = p.link.welcome!
-  await p.heartbeat()
-  const rooms = (await c.call('room.list', {})).rooms
-  p.dir.setRooms(
-    rooms.map((r) => ({
-      id: r.id,
-      name: r.name,
-      myName: r.myName,
-      role: r.role,
-      archived: r.archived,
-      open: r.open === true,
-    })),
-  )
-  const held = new Set(session.held)
-  // 열린 방은 이름 옆에 [열림](명세 §10.7 — 이 방에서 시작하는 대화는 방 사람 모두에게 보인다)
-  const title = (r: (typeof rooms)[number]) => `${r.name}${r.open ? ' [열림]' : ''}`
-  const list = classifyRooms(
-    Object.fromEntries(rooms.map((r) => [title(r), r.myName])),
-    rooms.filter((r) => held.has(r.id)).map(title),
-    rooms.filter((r) => p.heldElsewhere.includes(r.id)).map(title),
-  )
-  const lines = [
-    `Meshwork — '${w.org.name}' 조직 @ ${new URL(cfg.server!).host}`,
-    `나: ${w.me.name}${w.me.role === 'admin' ? ' (조직 관리자)' : ''} · ${p.off ? '🌙 퇴근 중 — 팀 메시지는 보관됩니다(away off 로 출근)' : '🟢 출근'}`,
-    `이 세션이 받는 방: ${session.held.map((r) => p.dir.roomTitle(r) ?? r).join(', ') || '(없음 — /meshwork:room 으로 받을 방을 정하세요)'}`,
-    rooms.length
-      ? `참가한 방 ${rooms.length}개\n${renderRooms(list)}`
-      : '참가한 방: (없음 — 초대 링크로 /meshwork:join)',
-  ]
-  for (const id of session.held) {
-    const d = await p.dir.detail(id).catch(() => null)
-    if (!d) continue
-    const people = d.members
-      .filter((m) => m.member !== p.me)
-      .map(
-        (m) =>
-          `${PRESENCE[m.presence] ?? ''}${m.kind === 'service' ? '🤖' : ''}${m.name}${m.noack ? '⚠️' : ''}${m.always ? '(상시)' : ''}`,
-      )
-      .join(' ')
-    lines.push(`  [${d.name}] ${people || '(혼자)'}`)
-  }
-  if (session.held.length)
-    lines.push(
-      '  🟢 출근 · 🟡 자리 비움 · 🌙 퇴근(보관) · ⚪ 오프라인(보관) · ⚠️ 최근 무응답 · 🤖 봇',
-    )
-  lines.push(autoLine)
-  if (p.link.contextChanged)
-    lines.push('ℹ️ 세션을 켠 뒤 팀 규약 · 방 메모리가 바뀌었습니다 — 새 세션부터 들어갑니다')
-  const notice = p.noticeLine()
-  if (notice) lines.push(`📢 ${notice}`)
-  return ok(lines.join('\n'))
-}
+// ── away · room ──────────────────────────────────────────────────
 
 async function away(p: Plugin, a: Args): Promise<ToolResult> {
   if (a.mode !== 'on' && a.mode !== 'off') return fail('mode 는 on(퇴근) · off(출근) 입니다')
