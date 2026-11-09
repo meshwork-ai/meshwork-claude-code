@@ -342,7 +342,12 @@ describe('상태 파일 — 상태줄이 읽는 모양', () => {
       )
       const r = spawnSync('sh', [join(PLUGIN_DIR, 'statusline.sh')], {
         input: JSON.stringify({ session_id: 's1' }),
-        env: { ...process.env, MESHWORK_HOME: dir, MESHWORK_GATEWAY: '1' },
+        env: {
+          ...process.env,
+          MESHWORK_HOME: dir,
+          MESHWORK_TEST_PARENT_ARGS:
+            'claude --dangerously-load-development-channels plugin:meshwork@meshwork',
+        },
         encoding: 'utf8',
       })
       return r.stdout

@@ -1,15 +1,18 @@
 /**
  * Claude Code 호스트 — 이 파일이 Claude Code 에 대한 결합의 전부다(연결 계약 `docs/host-claude-code.md`).
  *
- *  · 넣기: `notifications/claude/channel` 로 세션에 넣으면 `<channel …>` 꼬리표가 된다
- *  · 세션 id: `CLAUDE_CODE_SESSION_ID` · 팀 세션: `MESHWORK_GATEWAY=1`(`meshwork-claude` alias 가 선언)
+ *  · 넣기: `notifications/claude/channel` 로 세션에 넣으면 `<channel …>` 꼬리표가 된다 — 채널이 꺼진 세션은 오류 없이 버리므로
+ *    첫 글은 훅(channel.sh)이 「들어감」 을 적은 뒤에 끝난다(core/channel-confirm.ts · 꺼졌으면 ChannelDropped)
+ *  · 세션 id: `CLAUDE_CODE_SESSION_ID` · 팀 세션: 부모 claude 의 실행 명령에 채널 플래그 + 이 플러그인(core/team-session.ts)
  *  · 작업 폴더: `CLAUDE_PROJECT_DIR` · 세션 이름: 상태줄이 적어 둔 파일(core/state.ts readSessionName)
  */
 import { spawn } from 'node:child_process'
 
 import type { Server } from '@modelcontextprotocol/sdk/server/index.js'
 
+import { readMarks, waitDelivered } from '../core/channel-confirm'
 import { readSessionName } from '../core/state'
+import { parentArgs, teamFromArgs } from '../core/team-session'
 import type { ChoiceSpec, Host } from './types'
 
 declare const Bun: { version: string } | undefined
@@ -30,9 +33,14 @@ export function createClaudeHost(
   o: { home: string; env?: NodeJS.ProcessEnv },
 ): Host {
   const env = o.env ?? process.env
+  const teamCheck = teamFromArgs(parentArgs(env))
+  /** 이 세션에 채널 글이 들어가는 것을 봤다 — 그 뒤로는 보내면 끝 */
+  let delivered = false
+  const idleMs = Number(env.MESHWORK_CHANNEL_WAIT_MS ?? 5_000)
   return {
     sessionId: env.CLAUDE_CODE_SESSION_ID ?? '',
-    isTeam: env.MESHWORK_GATEWAY === '1',
+    isTeam: teamCheck === 'team',
+    teamCheck,
     runtime: typeof Bun !== 'undefined' ? `Bun ${Bun.version}` : `Node ${process.version}`,
     nodeMajor: Number(/^v?(\d+)/.exec(process.versions.node)?.[1] ?? 0),
     workDir: env.CLAUDE_PROJECT_DIR || process.cwd(),
@@ -40,10 +48,19 @@ export function createClaudeHost(
     async notify(content, meta = {}) {
       const server = mcp()
       if (!server) throw new Error('MCP 가 아직 붙지 않았습니다')
+      const sentAt = Date.now()
       await server.notification({
         method: 'notifications/claude/channel',
         params: { content, meta },
       })
+      if (delivered) return
+      await waitDelivered(sentAt, {
+        now: Date.now,
+        read: () => readMarks(o.home),
+        sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
+        idleMs,
+      })
+      delivered = true
     },
     canAsk: () => !!mcp()?.getClientCapabilities()?.elicitation,
     /**

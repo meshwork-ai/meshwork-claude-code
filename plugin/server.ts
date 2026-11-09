@@ -4,7 +4,7 @@
  *  - 받기: 서버 알림(client-core) → `notifications/claude/channel` → `<channel …>` 꼬리표로 세션에(넘긴 뒤에 ack)
  *  - 보내기: 팀 도구(MCP) → 서버
  *  - 팀 규약 · 방 메모리 · 도구 안내는 MCP 안내문으로 시스템 프롬프트에(켤 때 한 번 — 명세 §12)
- *  - `meshwork-claude` 로 켠 세션만 서버에 붙는다(`MESHWORK_GATEWAY=1`) — 일반 세션은 안내 한 줄 · route · doctor 만
+ *  - 채널 플래그로 이 플러그인을 켠 세션(`meshwork-claude`)만 서버에 붙는다(core/team-session.ts) — 일반 세션은 안내 한 줄 · route · doctor 만
  *
  * 연결 계약: `docs/host-claude-code.md` · 파일 자리: core/paths.ts
  */

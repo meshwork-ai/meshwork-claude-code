@@ -49,7 +49,10 @@ export async function startPlugin(o: {
       ...(process.env as Record<string, string>),
       HOME: home,
       USERPROFILE: home,
-      MESHWORK_GATEWAY: o.team ? '1' : '',
+      // 부모 claude 의 실행 명령 흉내 — 팀 세션은 채널 플래그로 이 플러그인을 켠 것
+      MESHWORK_TEST_PARENT_ARGS: o.team
+        ? 'claude --dangerously-load-development-channels plugin:meshwork@meshwork'
+        : 'claude',
       CLAUDE_CODE_SESSION_ID: o.sessionId ?? 'ses-test-1',
       MESHWORK_NO_BROWSER: '1',
       MESHWORK_NUDGE_DELAY_MS: '50',

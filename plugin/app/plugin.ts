@@ -3,7 +3,7 @@
  *
  * 세션에 넣는 것 · 넣지 않는 것(명세 · 아키텍처 §13):
  *  - 넣음: 이 세션 몫의 메시지(꼬리표 — core/tags.ts) · 내가 물은 질문의 무응답 · 만료 · 담당 변경 · 내가 제안한 합의의 결과 ·
- *    받는 방을 잃음 · 방 참가 · 다른 곳에서 이미 답함(가로채기) · 다시 붙지 않게 됨 · 로그인 결과
+ *    받는 방을 잃음 · 방 참가 · 다른 곳에서 이미 답함(가로채기) · 사용자가 답하지 않기로 함 · 다시 붙지 않게 됨 · 로그인 결과
  *  - 넣지 않음: 규약 · 방 메모리의 새 전문(새 세션부터 — 상태줄 · doctor) · 서비스 공지 · 조직 공지(상태줄 · doctor 한 줄)
  *
  * **받았다는 알림(ack)은 세션에 넘긴 뒤에** — 넣기가 실패하면 약속을 거절해 ack 하지 않는다(서버가 다시 보낸다 — 연결 계약 §6).
@@ -13,6 +13,7 @@ import { type Lang, pickLang } from '@meshwork-ai/i18n'
 import type { EvData } from '@meshwork-ai/protocol'
 
 import type { Paths } from '../core/paths'
+import { ChannelDropped } from '../core/channel-confirm'
 import { type SessionState, stateText, sweepStaleStates, writeState } from '../core/state'
 import { type Message, tagMessage } from '../core/tags'
 import type { Host } from '../host/types'
@@ -39,6 +40,8 @@ export class Plugin {
   /** 퇴근 중 */
   off = false
   orgNotice: { text: string; endsAt: string } | null = null
+  /** 채널 글이 세션에 들어가지 않음(채널 플래그 · 조직 정책 · 훅 꺼짐) — 받기를 멈췄다 */
+  channelDropped = false
   serviceNotices: EvData<'service.notice'>['notices'] = []
   private sentName?: string
   private ready!: () => void
@@ -89,7 +92,19 @@ export class Plugin {
   /** 세션에 넣는다 — MCP 가 붙을 때까지 기다린다 · 실패하면 던진다(ack 하지 않게) */
   async notify(content: string, meta: Record<string, string>): Promise<void> {
     await this.mcpReady
-    await this.host.notify(content, meta)
+    if (this.channelDropped) throw new ChannelDropped('채널이 꺼진 세션')
+    try {
+      await this.host.notify(content, meta)
+    } catch (e) {
+      // 채널 글이 들어가지 않음 — 받음 처리를 하지 않고(서버가 보관 · 다시 보냄) 받기를 멈춘다. 까닭은 상태줄 · doctor
+      if (e instanceof ChannelDropped && !this.channelDropped) {
+        this.channelDropped = true
+        this.log('채널 알림이 세션에 들어가지 않음 — 받기를 멈춤')
+        this.link.close()
+        this.exportState()
+      }
+      throw e
+    }
   }
 
   /**
@@ -135,6 +150,7 @@ export class Plugin {
     client.on('reconnecting', () => this.exportState())
     client.on('message.new', (m, frame) => (live() ? this.onMessage(m, frame.sid) : undefined))
     client.on('thread.state', (d) => (live() ? this.onThreadState(d) : undefined))
+    client.on('thread.skipped', (d) => (live() ? this.onSkipped(d) : undefined))
     client.on('thread.assigned', (d) => (live() ? this.onAssigned(d) : undefined))
     client.on('agree.resolved', (d) => (live() ? this.onAgreeResolved(d) : undefined))
     client.on('session.room_lost', (d, frame) =>
@@ -256,6 +272,24 @@ export class Plugin {
     }
   }
 
+  /**
+   * 사용자가 받은 질문을 「답하지 않음」 으로 둠(앱 · 다른 기기 — 명세 §8.2) — 이 세션은 답하지 않는다. 서버도 답장을 거절한다.
+   * 상대가 그 대화에 다시 보내면 풀린다(onMessage 가 지움)
+   */
+  private async onSkipped(d: EvData<'thread.skipped'>): Promise<void> {
+    const got = this.received.get(d.thread)
+    if (!got || this.repliedHere.has(d.thread) || this.answeredElsewhere.has(d.thread)) return
+    this.answeredElsewhere.add(d.thread)
+    await this.say(
+      `[답하지 않음] '${got.from}'님의 질문은 사용자가 답하지 않기로 했습니다 — 이 질문에는 답하지 말고 하던 일을 멈추세요.`,
+      {
+        kind: 'skipped',
+        thread: d.thread,
+        ...(got.room ? { room: this.roomLabel(got.room) } : {}),
+      },
+    )
+  }
+
   private async onAssigned(d: EvData<'thread.assigned'>): Promise<void> {
     const mine = this.asked.get(d.thread)
     if (!mine || d.assigned === this.me) return
@@ -374,6 +408,7 @@ export class Plugin {
   // ── 상태줄 · 하트비트 ───────────────────────────────────────────
 
   linkKind(): SessionState['link'] {
+    if (this.channelDropped) return 'stopped'
     const s = this.link.state
     if (s.kind === 'no_server' || s.kind === 'logged_out') return 'login'
     if (s.kind === 'no_org') return 'org'
@@ -405,7 +440,7 @@ export class Plugin {
       ppid: process.ppid,
       team: this.host.isTeam,
       link: this.linkKind(),
-      stopped: s.kind === 'stopped' ? (s.code ?? s.reason) : null,
+      stopped: this.channelDropped ? 'channel' : s.kind === 'stopped' ? (s.code ?? s.reason) : null,
       held: held.map((r) => plain(this.dir.roomTitle(r, '(열림)') ?? r)),
       empty: joined
         .filter((r) => !held.includes(r) && !this.heldElsewhere.includes(r))

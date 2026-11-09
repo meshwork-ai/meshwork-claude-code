@@ -12,6 +12,7 @@
  *
  * 일반 세션(팀 세션이 아님)에서는 route · doctor 만 쓴다(PRD §8.4). 결과 글은 에이전트가 읽고 사용자에게 옮긴다.
  */
+import type { TeamCheck } from '../core/team-session'
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
@@ -46,6 +47,15 @@ export type { Args, ToolResult }
 const LOCAL_TOOLS = new Set(['doctor', 'route'])
 const NOT_TEAM =
   '이 세션에서는 Meshwork 를 쓸 수 없습니다 — meshwork-claude 로 켠 세션에서 다시 해 주세요'
+
+/** 팀 세션이 아닌 까닭 — doctor */
+const NOT_TEAM_WHY: Record<TeamCheck, string> = {
+  team: '',
+  'no-channel': '채널 플래그 없이 켠 세션이라 팀 메시지가 들어오지 않습니다',
+  'other-channel': '다른 플러그인의 채널만 켠 세션입니다',
+  print: '한 번 묻고 끝나는 실행(-p)입니다',
+  unknown: '실행 명령을 읽지 못했습니다',
+}
 
 /** 도구 하나를 처리한다 — 던진 오류도 글로 바꾼다 */
 export async function callTool(p: Plugin, name: string, args: Args): Promise<ToolResult> {
@@ -518,9 +528,18 @@ async function doctor(p: Plugin): Promise<ToolResult> {
   check(
     p.host.isTeam,
     '팀 세션',
-    p.host.isTeam ? '예 (meshwork-claude)' : '아니요 — 이 세션에서는 팀 기능을 쓸 수 없습니다',
-    'meshwork-claude 로 켠 세션에서 /meshwork:doctor 를 다시 실행하세요',
+    p.host.isTeam ? '예 (채널로 켠 세션)' : `아니요 — ${NOT_TEAM_WHY[p.host.teamCheck]}`,
+    'meshwork-claude(= claude --dangerously-load-development-channels plugin:meshwork@meshwork) 로 켠 세션에서 /meshwork:doctor 를 다시 실행하세요',
   )
+  if (p.host.isTeam)
+    check(
+      !p.channelDropped,
+      '채널 도착',
+      p.channelDropped
+        ? '팀 메시지가 이 세션에 들어가지 않아 받기를 멈췄습니다(메시지는 서버가 보관)'
+        : '이 세션에 들어감(첫 메시지에서 확인)',
+      '조직 설정이 채널을 막았거나(Team · Enterprise 는 관리자가 채널을 켜야 함) 훅이 꺼져 있을 수 있습니다 — 확인한 뒤 새 세션을 여세요',
+    )
   const cfgPath = p.paths.config
   const cfg = loadConfig(cfgPath)
   for (const [label, path] of [

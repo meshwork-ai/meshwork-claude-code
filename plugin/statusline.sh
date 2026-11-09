@@ -6,6 +6,15 @@
 # Claude Code 가 세션 정보를 JSON 으로 표준 입력에 준다 — 그 안의 session_id 로 **이 세션의** 상태 파일만 찾는다.
 # 팀 세션이 아니면 그 파일이 없으므로 아무것도 띄우지 않는다.
 DIR="${MESHWORK_HOME:-$HOME/.claude/channels/meshwork}"
+
+# 팀 세션인가 — 부모 claude 의 실행 명령에 채널 플래그 + 이 플러그인 · 한 번 묻고 끝나는 실행(-p)은 아님(core/team-session.ts 와 같게)
+PARGS="${MESHWORK_TEST_PARENT_ARGS-$(ps -o args= -p "$PPID" 2>/dev/null)}"
+is_team() {
+  case " $PARGS " in *" --channels "* | *" --channels="* | *" --dangerously-load-development-channels "* | *" --dangerously-load-development-channels="*) ;; *) return 1 ;; esac
+  case " $PARGS " in *" -p "* | *" --print "*) return 1 ;; esac
+  case "$PARGS" in *plugin:meshwork@*) return 0 ;; esac
+  return 1
+}
 if [ -n "$MESHWORK_STATE" ]; then
   STATE="$MESHWORK_STATE"
 else
@@ -16,7 +25,7 @@ else
 
   # 세션 이름 — /rename · --name 으로 붙인 이름. 플러그인은 이 값을 받을 길이 없어(MCP 에는 오지 않음) 여기서
   # 파일로 건넨다. 열쇠는 $PPID — 상태줄과 플러그인의 부모가 같은 claude 다. 바뀔 때만 쓴다
-  if [ "$MESHWORK_GATEWAY" = "1" ]; then
+  if is_team; then
     SNAME=$(printf '%s' "$INPUT" | sed -n 's/.*"session_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -1)
     if [ -n "$SNAME" ]; then
       NF="$DIR/name-$PPID"
@@ -40,7 +49,7 @@ fresh() {
 # 세션 id 로 된 파일이 없거나 낡았을 때 — 플러그인이 쓰는 세션 id 와 상태줄이 받는 id 가 갈릴 수 있다(--resume).
 # 같은 claude 창이 낳은 파일(ppid)을 찾는다. 팀 세션이 아니면 남의 상태를 집지 않는다
 if ! fresh "$STATE"; then
-  [ "$MESHWORK_GATEWAY" = "1" ] || exit 0
+  is_team || exit 0
   PICK=""
   for f in "$DIR"/state-*.json; do
     fresh "$f" || continue
@@ -81,6 +90,7 @@ case "$(field link)" in
     case "$(field stopped)" in
       outdated) printf '[meshwork ✗ 업데이트 필요]%s' "$TAIL" ;;
       removed)  printf '[meshwork ✗ 조직에서 빠짐]%s' "$TAIL" ;;
+      channel)  printf '[meshwork ✗ 채널이 꺼진 세션 — 받지 않음 · 서버가 보관 · /meshwork:doctor]%s' "$TAIL" ;;
       *)        printf '[meshwork ✗ %s]%s' "$(field stopped)" "$TAIL" ;;
     esac
     exit 0 ;;

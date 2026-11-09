@@ -120,12 +120,30 @@ await mcp.notification({
 
 | 형태 | 명령 |
 |---|---|
-| 팀 세션(팀원) | `MESHWORK_GATEWAY=1 claude --dangerously-load-development-channels plugin:meshwork@meshwork` — `meshwork-claude` alias |
+| 팀 세션(팀원) | `claude --dangerously-load-development-channels plugin:meshwork@meshwork` — `meshwork-claude` alias |
 | 개발 | 프로젝트 `.mcp.json` 에 서버 등록 → `claude --dangerously-load-development-channels server:meshwork` |
 
 - 개발 채널 플래그는 켤 때 경고 화면이 한 번 뜬다. 정식 기능이 되면 조직 관리자가 `allowedChannelPlugins` 에 등록해야 플래그 없이 쓸 수 있다.
-- `MESHWORK_GATEWAY=1` 이 이 세션이 방을 **받는** 팀 세션이라는 선언이다. 일반 `claude` 세션은 서버에 붙지 않는다.
-- 시범 기간에는 team-relay 플러그인과 같이 설치한다 — 켜는 표시(`TEAM_RELAY_GATEWAY` · `MESHWORK_GATEWAY`) · 설정 폴더 · 명령 이름이 모두 달라 서로 간섭하지 않는다.
+- **팀 세션 판단은 채널 플래그 하나** — 플러그인(MCP 서버 · 상태줄)의 부모 `claude` 실행 명령에 채널 플래그(`--channels` · `--dangerously-load-development-channels`)와 `plugin:meshwork@` 가 있고 한 번 묻고 끝나는 실행(`-p` · `--print`)이 아니면 팀 세션이다(`plugin/core/team-session.ts` · `ps -o args= -p <부모>`). 일반 `claude` 세션은 서버에 붙지 않는다.
+  예전의 환경 변수(`MESHWORK_GATEWAY=1`)는 없앴다 — 그 세션 안에서 켠 다른 `claude` 가 변수를 물려받아 받는 쪽을 가져갔고, 변수만 켜고 채널 플래그를 빠뜨리면 메시지가 조용히 버려졌다.
+- 시범 기간에는 team-relay 플러그인과 같이 설치한다 — 켜는 방법(`TEAM_RELAY_GATEWAY` · 채널 플래그) · 설정 폴더 · 명령 이름이 모두 달라 서로 간섭하지 않는다.
+
+### 4.1.1 채널 도착 확인
+
+Claude Code 는 채널로 등록되지 않은 세션 · 조직 정책(`channelsEnabled` · `allowedChannelPlugins`)이나 승인 목록으로 막힌 채널의 알림을
+**오류 없이 버린다** — 보내기(`await`)는 보낸 것까지만 알려 준다. 그래서 세션의 **첫 채널 글**은 들어간 것을 본 뒤에 받음(ack) 처리한다.
+
+| 훅(`hooks/hooks.json` → `plugin/channel.sh`) | 적는 것(`chan-<claude PID>.<표시>` · 밀리초) |
+|---|---|
+| `UserPromptSubmit` | `busy` — 일하기 시작 · 글이 `<channel source="plugin:meshwork:meshwork" …>` 를 담으면 `seen` |
+| `Stop` | `idle` — 쉬는 중 |
+
+- 훅은 아무것도 출력하지 않는다(`UserPromptSubmit` 의 출력은 AI 대화에 들어간다). 훅의 `$PPID` 가 `claude` 다(중간 셸 없음).
+- 쉬는 중이면 0.1초 뒤 `seen` · AI 가 일하는 중에 온 글은 턴이 끝난 직후에 훅이 불린다 — 일하는 중이면 끝날 때까지 기다린다.
+- 쉬는 중인데 5초 안에 `seen` 이 없으면 채널이 꺼진 것 — 받음 처리를 하지 않고(서버가 보관 · 다시 보냄) 이 세션은 받기를 멈춘다.
+  상태줄 「채널이 꺼진 세션」 · doctor 「채널 도착」 에 까닭. 훅을 꺼 둔 세션도 같이 멈춘다(메시지는 잃지 않는다).
+- 실측(2.1.314): 개발 채널로 켜면 `seen` · 승인 목록에 없는 채널(`--channels`)은 화면에 `not on the approved channels allowlist` 가 뜨고
+  글이 버려진다 → 받기를 멈춤. 정기 시험이 `scripts/channel-live.py` 로 두 장면을 지킨다(meshwork-app engines-daily).
 
 ### 4.2 세션을 가리키는 값
 

@@ -52,9 +52,9 @@ git config --global url."https://github.com/".insteadOf "git@github.com:"
 
 ```bash
 # 기본 — 권한 묻기는 평소대로 (권장)
-alias meshwork-claude='MESHWORK_GATEWAY=1 claude --dangerously-load-development-channels plugin:meshwork@meshwork'
+alias meshwork-claude='claude --dangerously-load-development-channels plugin:meshwork@meshwork'
 # 권한을 묻지 않음 — 믿을 수 있는 작업에서만
-alias meshwork-claude-yolo='MESHWORK_GATEWAY=1 claude --dangerously-skip-permissions --dangerously-load-development-channels plugin:meshwork@meshwork'
+alias meshwork-claude-yolo='claude --dangerously-skip-permissions --dangerously-load-development-channels plugin:meshwork@meshwork'
 ```
 
 ### 4) 켜고 로그인

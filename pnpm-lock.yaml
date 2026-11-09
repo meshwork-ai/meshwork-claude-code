@@ -167,8 +167,8 @@ importers:
   .:
     devDependencies:
       '@meshwork-ai/config':
-        specifier: 0.3.2
-        version: 0.3.2(eslint@10.12.0)(prettier@3.9.10)(typescript@6.0.3)(vitest@5.0.5(@types/node@24.19.2)(vite@8.3.4(@types/node@24.19.2)(esbuild@0.28.2)))
+        specifier: 0.23.3
+        version: 0.23.3(eslint@10.12.0)(prettier@3.9.10)(typescript@6.0.3)(vitest@5.0.5(@types/node@24.19.2)(vite@8.3.4(@types/node@24.19.2)(esbuild@0.28.2)))
       '@types/node':
         specifier: 24.19.2
         version: 24.19.2
@@ -188,17 +188,17 @@ importers:
   plugin:
     dependencies:
       '@meshwork-ai/client-core':
-        specifier: 0.6.0
-        version: 0.6.0
+        specifier: 0.23.3
+        version: 0.23.3
       '@meshwork-ai/i18n':
-        specifier: 0.6.0
-        version: 0.6.0
+        specifier: 0.23.3
+        version: 0.23.3
       '@meshwork-ai/protocol':
-        specifier: 0.6.0
-        version: 0.6.0
+        specifier: 0.23.3
+        version: 0.23.3
       '@meshwork-ai/team-tools':
-        specifier: 0.1.0
-        version: 0.1.0
+        specifier: 0.2.19
+        version: 0.2.19
       '@modelcontextprotocol/sdk':
         specifier: 1.32.1
         version: 1.32.1(zod@4.6.7)
@@ -464,12 +464,12 @@ packages:
   '@keyv/serialize@1.1.1':
     resolution: {integrity: sha512-dXn3FZhPv0US+7dtJsIi2R+c7qWYiReoEh5zUntWCf4oSpMNib8FDhSoed6m3QyZdx5hK7iLFkYk3rNxwt8vTA==}
 
-  '@meshwork-ai/client-core@0.6.0':
-    resolution: {integrity: sha512-Az2hIS1hjnq64GK50q+9xKx1OjRezBNwF31L/Qu4FwKv/HDMd932UTwv35hpn45YNgINX7bl/m7j4qeUL1c9LQ==, tarball: https://npm.pkg.github.com/download/@meshwork-ai/client-core/0.6.0/f4c6eb7a80d1a7fa35387dd04e59552d5e40846b}
+  '@meshwork-ai/client-core@0.23.3':
+    resolution: {integrity: sha512-OHtN5GuO79Yz723kU+ojiGe0fFC7JV9Gk+99fFig98ORympYj10pvg68qS7whPtSaGW+Rp0JEDj2iWpizrs6iA==, tarball: https://npm.pkg.github.com/download/@meshwork-ai/client-core/0.23.3/42de0bc2ae88a4a37b76b7f621f85ea3d8de6c58}
     engines: {node: '>=22'}
 
-  '@meshwork-ai/config@0.3.2':
-    resolution: {integrity: sha512-rahIXxyJlJqkauao2pL4lLNim6Y8Ki0Q2UNybGq1f5vRKNzwpoUsWDL9sjNq0LyhchilnA7Zu2+msd5pB0ialA==, tarball: https://npm.pkg.github.com/download/@meshwork-ai/config/0.3.2/e76025762206289ed42e754804684567915cf8fe}
+  '@meshwork-ai/config@0.23.3':
+    resolution: {integrity: sha512-atnCsE+fpVerYDFDzrQXB048yUA+M2UpiKu4bPW2iQVba3EXvbMHOsSnx7nR/QWkYt8IiHJHAAzoM8mGUAjRnw==, tarball: https://npm.pkg.github.com/download/@meshwork-ai/config/0.23.3/304b68f9b58fd636131fd5dc214f162347cec381}
     engines: {node: '>=24'}
     hasBin: true
     peerDependencies:
@@ -478,16 +478,16 @@ packages:
       typescript: ^6
       vitest: ^5
 
-  '@meshwork-ai/i18n@0.6.0':
-    resolution: {integrity: sha512-5Z0HWSDW5qESJj3gOmReZWZeQMO1cXmbb9BLdQh/GkzCasX7KiagMd0oGs0DWdwpkdsaKlI23V4VyhtgtCKxIw==, tarball: https://npm.pkg.github.com/download/@meshwork-ai/i18n/0.6.0/0bba1331e828686b217f7fb96b5820475a6ca688}
+  '@meshwork-ai/i18n@0.23.3':
+    resolution: {integrity: sha512-P6Y2GnwJFGQAc4MD3M/k2bWjNK9OQ+e3tEvxxjLv1TaTS2quse6UyBJc3jpC3qNnARxrCfFerjxqc56F5MGwTg==, tarball: https://npm.pkg.github.com/download/@meshwork-ai/i18n/0.23.3/2e6287a11bb3640a3d2fd04fa0a029e035080d2c}
     engines: {node: '>=22'}
 
-  '@meshwork-ai/protocol@0.6.0':
-    resolution: {integrity: sha512-pKh6EFTaxi4MHt3lfNlhnvA55mh6V7q/ruQJalouriG2MwJijFd9NcqzG6xVPz88sPoF+J0d8f6be2iAsVQtfg==, tarball: https://npm.pkg.github.com/download/@meshwork-ai/protocol/0.6.0/8b9a64ff9f82301a70aa8b11e5fce55d2dc2f36d}
+  '@meshwork-ai/protocol@0.23.3':
+    resolution: {integrity: sha512-HV2nkd91W7mtxgJME/ebpZ2rUqaa4lRy+jE+Tv4vWd+Pp5RO3rhnL3pOiyG8xz1fvddQU9bY0NomcyP5JAQDJw==, tarball: https://npm.pkg.github.com/download/@meshwork-ai/protocol/0.23.3/d98b72a120a34638d4c9c43b3b4eeb986f57d9cc}
     engines: {node: '>=22'}
 
-  '@meshwork-ai/team-tools@0.1.0':
-    resolution: {integrity: sha512-d3KY+EH/zeLPLxXpk1i1RoFyPaRKljquBn63LSGjLOY6PBqninEZJAGvoiDmxLiv1keoXa4NBwW+joc+DAZPqg==, tarball: https://npm.pkg.github.com/download/@meshwork-ai/team-tools/0.1.0/be23b1e755a6be92bc059f16c044a1d08e421013}
+  '@meshwork-ai/team-tools@0.2.19':
+    resolution: {integrity: sha512-gAcSjrCAGo0pN/tZTDPj9TCvMAtsaoWrJEDRO/xwmZmvfsPfNgrIi+IRwzUUbdv//Bf6yLb6pGHtfXByjX/kRQ==, tarball: https://npm.pkg.github.com/download/@meshwork-ai/team-tools/0.2.19/3e4067e86b511ec0f8144abb33dcc04eac231f7b}
     engines: {node: '>=22'}
 
   '@modelcontextprotocol/sdk@1.32.1':
@@ -1695,12 +1695,12 @@ snapshots:
 
   '@keyv/serialize@1.1.1': {}
 
-  '@meshwork-ai/client-core@0.6.0':
+  '@meshwork-ai/client-core@0.23.3':
     dependencies:
-      '@meshwork-ai/protocol': 0.6.0
+      '@meshwork-ai/protocol': 0.23.3
       zod: 4.6.7
 
-  '@meshwork-ai/config@0.3.2(eslint@10.12.0)(prettier@3.9.10)(typescript@6.0.3)(vitest@5.0.5(@types/node@24.19.2)(vite@8.3.4(@types/node@24.19.2)(esbuild@0.28.2)))':
+  '@meshwork-ai/config@0.23.3(eslint@10.12.0)(prettier@3.9.10)(typescript@6.0.3)(vitest@5.0.5(@types/node@24.19.2)(vite@8.3.4(@types/node@24.19.2)(esbuild@0.28.2)))':
     dependencies:
       '@eslint/js': 10.0.1(eslint@10.12.0)
       eslint: 10.12.0
@@ -1712,20 +1712,20 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@meshwork-ai/i18n@0.6.0':
+  '@meshwork-ai/i18n@0.23.3':
     dependencies:
-      '@meshwork-ai/protocol': 0.6.0
+      '@meshwork-ai/protocol': 0.23.3
       intl-messageformat: 12.1.3
 
-  '@meshwork-ai/protocol@0.6.0':
+  '@meshwork-ai/protocol@0.23.3':
     dependencies:
       zod: 4.6.7
 
-  '@meshwork-ai/team-tools@0.1.0':
+  '@meshwork-ai/team-tools@0.2.19':
     dependencies:
-      '@meshwork-ai/client-core': 0.6.0
-      '@meshwork-ai/i18n': 0.6.0
-      '@meshwork-ai/protocol': 0.6.0
+      '@meshwork-ai/client-core': 0.23.3
+      '@meshwork-ai/i18n': 0.23.3
+      '@meshwork-ai/protocol': 0.23.3
 
   '@modelcontextprotocol/sdk@1.32.1(zod@4.6.7)':
     dependencies:

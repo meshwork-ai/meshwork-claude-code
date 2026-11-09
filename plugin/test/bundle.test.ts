@@ -174,7 +174,8 @@ describe('번들 — Claude Code 가 초기화를 마치기 전에는 세션에 
       env: {
         ...process.env,
         HOME: home,
-        MESHWORK_GATEWAY: '1',
+        MESHWORK_TEST_PARENT_ARGS:
+          'claude --dangerously-load-development-channels plugin:meshwork@meshwork',
         CLAUDE_CODE_SESSION_ID: 's',
         MESHWORK_NUDGE_DELAY_MS: '10',
         MESHWORK_HOME: '',

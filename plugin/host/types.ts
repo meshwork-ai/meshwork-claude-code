@@ -4,11 +4,15 @@
  * 앱(app/)은 서버와의 대화만 알고, 사용자에게 무언가를 보여 주거나 세션을 알아보는 일은 전부 이 인터페이스를 통한다.
  * 다른 호스트를 붙이면 구현체 하나만 더한다(연결 계약 `docs/host-claude-code.md`).
  */
+import type { TeamCheck } from '../core/team-session'
+
 export interface Host {
   /** 이 세션의 id — 받는 방 기억의 열쇠. 모르면 빈 문자열 */
   readonly sessionId: string
-  /** 팀 세션인가 — `meshwork-claude` 로 켠 세션만 서버에 붙는다(PRD §8.4) */
+  /** 팀 세션인가 — 채널 플래그로 이 플러그인을 켠 세션(`meshwork-claude`)만 서버에 붙는다(PRD §8.4) */
   readonly isTeam: boolean
+  /** 팀 세션 판단 — 아니면 그 까닭(doctor) */
+  readonly teamCheck: TeamCheck
   /** 런타임 표시 — 진단용 */
   readonly runtime: string
   /** 런타임의 Node 호환 판(주 버전) — bun 이면 그 bun 이 흉내 내는 Node 판 */

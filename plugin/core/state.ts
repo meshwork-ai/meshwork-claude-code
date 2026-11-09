@@ -46,7 +46,8 @@ export function sweepStaleStates(home: string, maxAgeMs = 60 * 60 * 1000, now = 
     for (const f of readdirSync(home)) {
       const full = join(home, f)
       if (/^state-.*\.json$/.test(f) && now - statSync(full).mtimeMs > maxAgeMs) unlinkSync(full)
-      const m = f.match(/^name-(\d+)$/)
+      // 상태줄의 세션 이름 · 훅의 채널 표시 — 그 claude 가 끝났으면
+      const m = f.match(/^(?:name|chan)-(\d+)(?:\.(?:busy|idle|seen))?$/)
       if (m && !alive(Number(m[1]))) unlinkSync(full)
     }
   } catch {
@@ -77,7 +78,7 @@ export interface SessionState {
   sessionId: string
   /** 나를 띄운 Claude Code 프로세스의 PID — 세션 id 와 달리 창이 사는 동안 바뀌지 않는다(상태줄의 `$PPID`) */
   ppid: number
-  /** 팀 세션인가(`meshwork-claude`) */
+  /** 팀 세션인가(채널로 켠 세션 — `meshwork-claude`) */
   team: boolean
   /** 로그인 · 연결 — `login`(로그인 필요) · `org`(조직 고르기) · `connecting` · `open` · `offline`(다시 붙는 중) · `stopped` */
   link: 'login' | 'org' | 'connecting' | 'open' | 'offline' | 'stopped'

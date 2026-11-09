@@ -46,7 +46,7 @@ meshwork-claude 세션 ──┐   wss     ┌── meshwork-claude 세션
 ```
 
 ```bash
-alias meshwork-claude='MESHWORK_GATEWAY=1 claude --dangerously-load-development-channels plugin:meshwork@meshwork'
+alias meshwork-claude='claude --dangerously-load-development-channels plugin:meshwork@meshwork'
 ```
 
 `meshwork-claude` 로 켜고 `/meshwork:login <서버 주소>`. 자세한 것은 **[사용 가이드](docs/user-guide.md)**.

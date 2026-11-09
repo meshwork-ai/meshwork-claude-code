@@ -3,6 +3,19 @@
 버전을 올리면 여기에 `## <버전> · <제목> — <날짜>` 를 적는다(빌드가 확인한다). 이사 날까지는 0.x, 이사 날 1.0.0.
 team-relay 시절의 내역은 [docs/team-relay-changelog.md](docs/team-relay-changelog.md).
 
+## 0.3.0 · 메시지가 조용히 사라지지 않게 — 2026-11-09
+
+- **켜는 법이 플래그 하나** — 팀 세션은 `claude --dangerously-load-development-channels plugin:meshwork@meshwork`(alias
+  `meshwork-claude`). 환경 변수 `MESHWORK_GATEWAY=1` 은 없앴다 — 플러그인이 부모 `claude` 의 실행 명령에서 채널 플래그를 본다.
+  그 세션 안에서 켠 다른 `claude` 가 받는 쪽을 가져가거나, 플래그를 빠뜨려 메시지가 버려지던 것이 없어진다.
+  **alias 를 바꿔 주세요**(앞의 `MESHWORK_GATEWAY=1` 을 지움 — 남아 있어도 해는 없다)
+- **채널 도착 확인** — Claude Code 는 채널이 꺼진 세션(조직 정책 · 승인 목록 · 플래그 없음)의 알림을 오류 없이 버린다. 이제 세션의
+  첫 메시지는 AI 에게 실제로 들어간 것을 훅으로 본 뒤에 받았다고 알린다. 들어가지 않으면 받기를 멈추고(서버가 보관 · 다른 곳으로)
+  상태줄 「채널이 꺼진 세션」 · `/meshwork:doctor` 「채널 도착」 에 까닭
+- **답하지 않음** — 사용자가 앱 등에서 받은 질문을 「답하지 않음」 으로 두면 세션에 `[답하지 않음]` 을 알리고 답하지 않는다(서버도 답장을 거절)
+- doctor 「팀 세션」 이 아닌 까닭(플래그 없음 · 다른 플러그인 채널 · `-p`)
+- 공용 패키지 0.23.3
+
 ## 0.2.1 · 팀 도구를 공용 패키지로 — 2026-10-24
 
 - 팀 도구의 정의와 대화 도구 7개(send · reply · progress · history · memory · agree · status)의 처리를 공용 패키지
