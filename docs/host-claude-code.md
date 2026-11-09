@@ -121,7 +121,7 @@ await mcp.notification({
 | 형태 | 명령 |
 |---|---|
 | 팀 세션(팀원) | `claude --dangerously-load-development-channels plugin:meshwork@meshwork` — `meshwork-claude` alias |
-| 개발 | 프로젝트 `.mcp.json` 에 서버 등록 → `claude --dangerously-load-development-channels server:meshwork` |
+| 개발 | `claude --plugin-dir <이 저장소> --dangerously-load-development-channels plugin:meshwork@inline`(훅 · 상태줄까지 그대로 — `.mcp.json` 으로 서버만 띄우면 훅이 실리지 않아 채널 도착을 확인할 수 없다) |
 
 - 개발 채널 플래그는 켤 때 경고 화면이 한 번 뜬다. 정식 기능이 되면 조직 관리자가 `allowedChannelPlugins` 에 등록해야 플래그 없이 쓸 수 있다.
 - **팀 세션 판단은 채널 플래그 하나** — 플러그인(MCP 서버 · 상태줄)의 부모 `claude` 실행 명령에 채널 플래그(`--channels` · `--dangerously-load-development-channels`)와 `plugin:meshwork@` 가 있고 한 번 묻고 끝나는 실행(`-p` · `--print`)이 아니면 팀 세션이다(`plugin/core/team-session.ts` · `ps -o args= -p <부모>`). 일반 `claude` 세션은 서버에 붙지 않는다.
@@ -135,13 +135,18 @@ Claude Code 는 채널로 등록되지 않은 세션 · 조직 정책(`channelsE
 
 | 훅(`hooks/hooks.json` → `plugin/channel.sh`) | 적는 것(`chan-<claude PID>.<표시>` · 밀리초) |
 |---|---|
-| `UserPromptSubmit` | `busy` — 일하기 시작 · 글이 `<channel source="plugin:meshwork:meshwork" …>` 를 담으면 `seen` |
+| `UserPromptSubmit` | 글이 `<channel source="plugin:meshwork:meshwork" …>` 를 담으면 `seen` · 그다음 `busy`(일하기 시작) |
+| `PreToolUse` | `busy` — 도구를 부름(다른 플러그인의 Stop 훅이 턴을 막아 이어서 일하는 동안 쉬는 중으로 보지 않게) |
 | `Stop` | `idle` — 쉬는 중 |
 
 - 훅은 아무것도 출력하지 않는다(`UserPromptSubmit` 의 출력은 AI 대화에 들어간다). 훅의 `$PPID` 가 `claude` 다(중간 셸 없음).
 - 쉬는 중이면 0.1초 뒤 `seen` · AI 가 일하는 중에 온 글은 턴이 끝난 직후에 훅이 불린다 — 일하는 중이면 끝날 때까지 기다린다.
-- 쉬는 중인데 5초 안에 `seen` 이 없으면 채널이 꺼진 것 — 받음 처리를 하지 않고(서버가 보관 · 다시 보냄) 이 세션은 받기를 멈춘다.
-  상태줄 「채널이 꺼진 세션」 · doctor 「채널 도착」 에 까닭. 훅을 꺼 둔 세션도 같이 멈춘다(메시지는 잃지 않는다).
+- 쉬는 중인데 1분 안에 `seen` 이 없으면 채널이 꺼진 것 — 받음 처리를 하지 않고(서버가 보관 · 다시 보냄) 이 세션은 받기를 멈춘다
+  (연결을 멈춤으로 고정 — 로그인 · 조직 바꾸기로 다시 열리지 않음 · 새 세션에서 풀림). 상태줄 「채널이 꺼진 세션」 · doctor 「채널 도착」 에 까닭.
+  훅을 꺼 둔 세션도 같이 멈춘다(메시지는 잃지 않는다). 함께 기다리던 다른 글이 들어간 것을 보면 그 글들도 끝.
+- MCP 서버는 개발 채널 경고 화면을 넘긴 뒤에 뜬다(실측) — 경고를 오래 읽어도 시계가 돌지 않는다.
+- 한 번 묻고 끝나는 실행(`-p`)은 `CLAUDE_CODE_ENTRYPOINT`(`sdk-cli` · 대화형은 `cli`)로 본다 — 실행 명령 글에는 따옴표가 없어 첫 프롬프트의 「-p」 와 헷갈린다.
+- **Windows 는 아직** — `sh run.sh` 가 MSYS 에서 sh 를 남겨 부모가 claude 가 아닐 수 있고, Git Bash 훅의 `$PPID` 는 Windows PID 와 다르다. #4 윈도 작업에서 다시 설계한다.
 - 실측(2.1.314): 개발 채널로 켜면 `seen` · 승인 목록에 없는 채널(`--channels`)은 화면에 `not on the approved channels allowlist` 가 뜨고
   글이 버려진다 → 받기를 멈춤. 정기 시험이 `scripts/channel-live.py` 로 두 장면을 지킨다(meshwork-app engines-daily).
 

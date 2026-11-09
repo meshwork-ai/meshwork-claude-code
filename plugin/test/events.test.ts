@@ -3,7 +3,13 @@
  */
 import { describe, expect, it } from 'vitest'
 
+import { mkdtempSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+
+import { Link } from '../app/link'
 import { Plugin } from '../app/plugin'
+import { paths } from '../core/paths'
 import { ChannelDropped } from '../core/channel-confirm'
 
 type Handler = (d: unknown, frame?: unknown) => unknown
@@ -24,9 +30,9 @@ function setup(o: { drop?: boolean } = {}) {
     welcome: { me: { member: 'mem_me' } },
     config: () => ({}),
     onClient: (fn: (c: unknown) => void) => void (onClient = fn),
-    closed: 0,
-    close() {
-      this.closed++
+    halted: 0,
+    halt() {
+      this.halted++
     },
     state: { kind: 'open' },
     contextChanged: false,
@@ -63,7 +69,8 @@ describe('사람이 「답하지 않기」 한 질문(thread.skipped)', () => {
     expect(notes[0]!.content).toContain('[답하지 않음]')
     expect(notes[0]!.content).toContain('이민준')
     expect(notes[0]!.meta).toMatchObject({ kind: 'skipped', thread: 'thr_1', author: 'plugin' })
-    expect(p.answeredElsewhere.has('thr_1')).toBe(true)
+    // 답장은 서버가 「답하지 않기로 한 대화」 로 거절 — 「다른 곳에서 이미 답함」 으로 보이지 않게 따로 기억
+    expect(p.answeredElsewhere.has('thr_1')).toBe(false)
   })
 
   it('이 세션이 받지 않은 대화 · 이미 답한 대화는 알리지 않는다', async () => {
@@ -81,9 +88,31 @@ describe('채널이 꺼진 세션(⑨ 수정 B)', () => {
     const { p, link } = setup({ drop: true })
     await expect(p.notify('질문', { kind: 'question' })).rejects.toBeInstanceOf(ChannelDropped)
     expect(p.channelDropped).toBe(true)
-    expect(link.closed).toBe(1)
+    expect(link.halted).toBe(1)
     expect(p.linkKind()).toBe('stopped')
     await expect(p.notify('또', { kind: 'question' })).rejects.toBeInstanceOf(ChannelDropped)
-    expect(link.closed).toBe(1)
+    expect(link.halted).toBe(1)
+  })
+})
+
+describe('채널이 꺼져 멈춘 연결 — 다시 열지 않는다(로그인 · 조직 바꾸기 · 도구)', () => {
+  it('halt 뒤 restart · ready 는 열지 않고 멈춤 그대로', async () => {
+    const home = mkdtempSync(join(tmpdir(), 'mw-halt-'))
+    const link = new Link({
+      host: { sessionId: 's', isTeam: true } as never,
+      paths: paths(home),
+      log: () => {},
+    })
+    link.halt('channel')
+    expect(await link.restart()).toBe(false)
+    expect(await link.ready(50)).toBe(false)
+    expect(link.state).toEqual({ kind: 'stopped', reason: 'closed', code: 'channel' })
+  })
+
+  it('알림이 실패하면 기억하지 않는다 — 다시 받을 때 다시 알린다', async () => {
+    const { p, emit } = setup({ drop: true })
+    p.received.set('thr_9', { from: '이민준' })
+    await expect(emit('thread.skipped', { thread: 'thr_9' })).rejects.toBeInstanceOf(ChannelDropped)
+    expect((p as unknown as { skipped: Set<string> }).skipped.has('thr_9')).toBe(false)
   })
 })

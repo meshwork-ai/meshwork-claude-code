@@ -7,11 +7,10 @@
 # 팀 세션이 아니면 그 파일이 없으므로 아무것도 띄우지 않는다.
 DIR="${MESHWORK_HOME:-$HOME/.claude/channels/meshwork}"
 
-# 팀 세션인가 — 부모 claude 의 실행 명령에 채널 플래그 + 이 플러그인 · 한 번 묻고 끝나는 실행(-p)은 아님(core/team-session.ts 와 같게)
+# 팀 세션인가 — 부모 claude 의 실행 명령에 채널 플래그 + 이 플러그인(core/team-session.ts 와 같게 · -p 실행에는 상태줄이 없다)
 PARGS="${MESHWORK_TEST_PARENT_ARGS-$(ps -o args= -p "$PPID" 2>/dev/null)}"
 is_team() {
   case " $PARGS " in *" --channels "* | *" --channels="* | *" --dangerously-load-development-channels "* | *" --dangerously-load-development-channels="*) ;; *) return 1 ;; esac
-  case " $PARGS " in *" -p "* | *" --print "*) return 1 ;; esac
   case "$PARGS" in *plugin:meshwork@*) return 0 ;; esac
   return 1
 }

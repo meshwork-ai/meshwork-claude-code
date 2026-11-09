@@ -68,6 +68,8 @@ export function stoppedText(
     const reason = typeof params.reason === 'string' ? params.reason : undefined
     return `${reason ? formatCode('revoke', reason, {}, { lang: o.lang }) : '이 조직에서 빠졌습니다.'} 다른 조직이 있으면 /meshwork:login org`
   }
+  if (state.code === 'channel')
+    return '이 세션에는 팀 메시지가 들어가지 않아 받기를 멈췄습니다(메시지는 서버가 보관) — /meshwork:doctor 로 까닭을 보고, 채널을 켠 새 세션(meshwork-claude)을 여세요'
   if (state.code) return formatCode('error', state.code, params, { lang: o.lang })
   return '서버가 연결을 받아 주지 않았습니다 — /meshwork:doctor 로 확인하세요'
 }

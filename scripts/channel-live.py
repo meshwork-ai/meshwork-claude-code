@@ -76,7 +76,9 @@ try:
     for name, flag in [('정상', '--dangerously-load-development-channels'), ('막힘', '--channels')]:
         home = os.path.join(root, f'home-{len(result)}')
         os.makedirs(home)
-        env = dict(base, CLAUDE_CONFIG_DIR=cfg, MESHWORK_HOME=home, MESHWORK_NO_BROWSER='1')
+        # 쉬는 중 기다림은 기본 1분 — 시험은 10초로(판정 흐름만 본다)
+        env = dict(base, CLAUDE_CONFIG_DIR=cfg, MESHWORK_HOME=home, MESHWORK_NO_BROWSER='1',
+                   MESHWORK_CHANNEL_WAIT_MS='10000')
         tmux('kill-server')
         tmux('new-session', '-d', '-s', 'p', '-x', '200', '-y', '50', '-c', cwd,
              CLAUDE, '--plugin-dir', plug, '--model', MODEL, flag, 'plugin:meshwork@inline', env=env)

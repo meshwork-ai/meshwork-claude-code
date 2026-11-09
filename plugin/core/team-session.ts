@@ -5,7 +5,9 @@
  * 가져갔고 · 변수만 켜고 채널 플래그를 빠뜨리면 메시지가 조용히 버려졌다(Claude Code 는 채널로 등록되지 않은 세션의 알림을
  * 오류 없이 버린다). 채널 플래그가 곧 「이 세션에 메시지가 들어간다」 는 뜻이라 그것 하나로 본다.
  *
- * MCP 서버(run.sh 가 exec)와 상태줄의 부모가 그 claude 다 — `ps -o args= -p <부모>` 로 읽는다(실측 2.1.314)
+ * MCP 서버(run.sh 가 exec)와 상태줄의 부모가 그 claude 다 — `ps -o args= -p <부모>` 로 읽는다(실측 2.1.314).
+ * 한 번 묻고 끝나는 실행(`-p`)은 Claude Code 가 자식에게 주는 `CLAUDE_CODE_ENTRYPOINT` 로 본다(실측 — 대화형 `cli` · `-p` `sdk-cli`).
+ * 명령 글은 따옴표가 사라져 첫 프롬프트 안의 「-p」 와 헷갈린다
  */
 import { execFileSync } from 'node:child_process'
 
@@ -14,12 +16,12 @@ export type TeamCheck = 'team' | 'no-channel' | 'other-channel' | 'print' | 'unk
 
 const CHANNEL_FLAGS = ['--channels', '--dangerously-load-development-channels']
 
-export function teamFromArgs(args: string): TeamCheck {
+export function teamFromArgs(args: string, entrypoint?: string): TeamCheck {
   const words = args.trim().split(/\s+/).filter(Boolean)
   if (!words.length) return 'unknown'
   const channel = words.some((w) => CHANNEL_FLAGS.some((f) => w === f || w.startsWith(`${f}=`)))
   if (!channel) return 'no-channel'
-  if (words.includes('-p') || words.includes('--print')) return 'print'
+  if (entrypoint?.startsWith('sdk')) return 'print'
   return args.includes('plugin:meshwork@') ? 'team' : 'other-channel'
 }
 

@@ -38679,6 +38679,8 @@ var Link = class {
   }
   deps;
   state = { kind: "no_server" };
+  /** 받기를 멈춤(halt) — 다시 열지 않는다 */
+  halted;
   client;
   session;
   welcome;
@@ -38885,8 +38887,18 @@ var Link = class {
     }
     return this.state.kind === "open" && !!this.session && !this.session.closed;
   }
+  /**
+   * 받기를 멈춘다 — 이 세션에 채널 글이 들어가지 않음(⑨). 멈춤으로 고정해 로그인 · 조직 바꾸기 · 도구가 다시 열지 않게
+   * (다시 열면 방을 붙잡고 아무것도 받지 못한다 — 메시지가 다른 곳으로도 가지 못함). 새 세션을 열면 풀린다
+   */
+  halt(code) {
+    this.halted = code;
+    this.stopClient();
+    this.state = { kind: "stopped", reason: "closed", code };
+  }
   /** 닫고 처음부터 — 로그인 · 조직 바꾸기 뒤. 겹쳐 부르면 하나로 · 붙기 시작했으면 true */
   restart() {
+    if (this.halted) return Promise.resolve(false);
     this.restarting ??= (async () => {
       this.stopClient();
       const ok2 = await this.prepare();
@@ -38995,7 +39007,8 @@ var Link = class {
         this.save({ server });
         const org = await this.pickOrg(result.orgs, cfg.server === server ? cfg.org : void 0);
         this.stopClient();
-        if (org) {
+        if (this.halted) {
+        } else if (org) {
           this.state = { kind: "connecting" };
           this.start();
         } else this.state = { kind: "no_org", orgs: result.orgs };
@@ -39117,6 +39130,7 @@ var ChannelDropped = class extends Error {
 async function waitDelivered(sentAt, d) {
   const from = Math.floor(sentAt / 1e3) * 1e3;
   for (; ; ) {
+    if (d.done?.()) return;
     const m = d.read();
     if ((m.seen ?? 0) >= from) return;
     const busy = (m.busy ?? 0) > (m.idle ?? 0);
@@ -39286,6 +39300,8 @@ function stoppedText(state, o, params = {}) {
     const reason = typeof params.reason === "string" ? params.reason : void 0;
     return `${reason ? formatCode("revoke", reason, {}, { lang: o.lang }) : "\uC774 \uC870\uC9C1\uC5D0\uC11C \uBE60\uC84C\uC2B5\uB2C8\uB2E4."} \uB2E4\uB978 \uC870\uC9C1\uC774 \uC788\uC73C\uBA74 /meshwork:login org`;
   }
+  if (state.code === "channel")
+    return "\uC774 \uC138\uC158\uC5D0\uB294 \uD300 \uBA54\uC2DC\uC9C0\uAC00 \uB4E4\uC5B4\uAC00\uC9C0 \uC54A\uC544 \uBC1B\uAE30\uB97C \uBA48\uCDC4\uC2B5\uB2C8\uB2E4(\uBA54\uC2DC\uC9C0\uB294 \uC11C\uBC84\uAC00 \uBCF4\uAD00) \u2014 /meshwork:doctor \uB85C \uAE4C\uB2ED\uC744 \uBCF4\uACE0, \uCC44\uB110\uC744 \uCF20 \uC0C8 \uC138\uC158(meshwork-claude)\uC744 \uC5EC\uC138\uC694";
   if (state.code) return formatCode("error", state.code, params, { lang: o.lang });
   return "\uC11C\uBC84\uAC00 \uC5F0\uACB0\uC744 \uBC1B\uC544 \uC8FC\uC9C0 \uC54A\uC558\uC2B5\uB2C8\uB2E4 \u2014 /meshwork:doctor \uB85C \uD655\uC778\uD558\uC138\uC694";
 }
@@ -39323,6 +39339,8 @@ var Plugin = class {
   orgNotice = null;
   /** 채널 글이 세션에 들어가지 않음(채널 플래그 · 조직 정책 · 훅 꺼짐) — 받기를 멈췄다 */
   channelDropped = false;
+  /** 사용자가 「답하지 않음」 으로 둔 받은 질문 — 알린 것(한 번만). 답장은 서버가 거절한다(까닭이 그대로 보이게 따로 둠) */
+  skipped = /* @__PURE__ */ new Set();
   serviceNotices = [];
   sentName;
   ready;
@@ -39362,7 +39380,7 @@ var Plugin = class {
       if (e instanceof ChannelDropped && !this.channelDropped) {
         this.channelDropped = true;
         this.log("\uCC44\uB110 \uC54C\uB9BC\uC774 \uC138\uC158\uC5D0 \uB4E4\uC5B4\uAC00\uC9C0 \uC54A\uC74C \u2014 \uBC1B\uAE30\uB97C \uBA48\uCDA4");
-        this.link.close();
+        this.link.halt("channel");
         this.exportState();
       }
       throw e;
@@ -39472,6 +39490,7 @@ var Plugin = class {
       this.received.set(m.thread, { from: m.from.name, ...m.room ? { room: m.room } : {} });
       this.answeredElsewhere.delete(m.thread);
       this.repliedHere.delete(m.thread);
+      this.skipped.delete(m.thread);
     }
     if (m.from) this.dir.remember(m.from.member, m.from.name);
     await this.notify(tagged.content, tagged.meta);
@@ -39519,7 +39538,7 @@ var Plugin = class {
   async onSkipped(d) {
     const got = this.received.get(d.thread);
     if (!got || this.repliedHere.has(d.thread) || this.answeredElsewhere.has(d.thread)) return;
-    this.answeredElsewhere.add(d.thread);
+    if (this.skipped.has(d.thread)) return;
     await this.say(
       `[\uB2F5\uD558\uC9C0 \uC54A\uC74C] '${got.from}'\uB2D8\uC758 \uC9C8\uBB38\uC740 \uC0AC\uC6A9\uC790\uAC00 \uB2F5\uD558\uC9C0 \uC54A\uAE30\uB85C \uD588\uC2B5\uB2C8\uB2E4 \u2014 \uC774 \uC9C8\uBB38\uC5D0\uB294 \uB2F5\uD558\uC9C0 \uB9D0\uACE0 \uD558\uB358 \uC77C\uC744 \uBA48\uCD94\uC138\uC694.`,
       {
@@ -39528,6 +39547,7 @@ var Plugin = class {
         ...got.room ? { room: this.roomLabel(got.room) } : {}
       }
     );
+    this.skipped.add(d.thread);
   }
   async onAssigned(d) {
     const mine = this.asked.get(d.thread);
@@ -40334,12 +40354,12 @@ import { spawn } from "node:child_process";
 // core/team-session.ts
 import { execFileSync } from "node:child_process";
 var CHANNEL_FLAGS = ["--channels", "--dangerously-load-development-channels"];
-function teamFromArgs(args) {
+function teamFromArgs(args, entrypoint) {
   const words2 = args.trim().split(/\s+/).filter(Boolean);
   if (!words2.length) return "unknown";
   const channel = words2.some((w) => CHANNEL_FLAGS.some((f) => w === f || w.startsWith(`${f}=`)));
   if (!channel) return "no-channel";
-  if (words2.includes("-p") || words2.includes("--print")) return "print";
+  if (entrypoint?.startsWith("sdk")) return "print";
   return args.includes("plugin:meshwork@") ? "team" : "other-channel";
 }
 function parentArgs(env = process.env, ppid = process.ppid) {
@@ -40373,9 +40393,9 @@ function browserCommand(url2) {
 }
 function createClaudeHost(mcp2, o) {
   const env = o.env ?? process.env;
-  const teamCheck = teamFromArgs(parentArgs(env));
+  const teamCheck = teamFromArgs(parentArgs(env), env.CLAUDE_CODE_ENTRYPOINT);
   let delivered = false;
-  const idleMs = Number(env.MESHWORK_CHANNEL_WAIT_MS ?? 5e3);
+  const idleMs = Number(env.MESHWORK_CHANNEL_WAIT_MS ?? 6e4);
   return {
     sessionId: env.CLAUDE_CODE_SESSION_ID ?? "",
     isTeam: teamCheck === "team",
@@ -40397,7 +40417,8 @@ function createClaudeHost(mcp2, o) {
         now: Date.now,
         read: () => readMarks(o.home),
         sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
-        idleMs
+        idleMs,
+        done: () => delivered
       });
       delivered = true;
     },

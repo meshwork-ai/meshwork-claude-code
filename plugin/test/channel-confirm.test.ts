@@ -58,6 +58,15 @@ describe('채널 도착 확인 — 첫 메시지가 정말 AI 에게 들어갔�
     await expect(waitDelivered(100_000, w.deps)).rejects.toBeInstanceOf(ChannelDropped)
   })
 
+  it('함께 기다리던 다른 글이 들어간 것을 보면 — 이 글도 끝(정상 세션을 꺼짐으로 보지 않게)', async () => {
+    const w = world({ idle: 90_000 })
+    let other = false
+    w.at(1_000, {})
+    const p = waitDelivered(100_000, { ...w.deps, done: () => other })
+    other = true
+    await expect(p).resolves.toBeUndefined()
+  })
+
   it('초 단위로 적는 기기 — 같은 초 안의 「봄」 도 이번 것으로 본다', async () => {
     const w = world()
     w.at(100, { seen: 100_000 })

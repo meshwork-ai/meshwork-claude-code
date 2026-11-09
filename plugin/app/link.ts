@@ -95,6 +95,8 @@ function deviceOs(): string {
 
 export class Link {
   state: LinkState = { kind: 'no_server' }
+  /** 받기를 멈춤(halt) — 다시 열지 않는다 */
+  private halted?: 'channel'
   client?: MeshworkClient
   session?: Session
   welcome?: Welcome
@@ -332,8 +334,19 @@ export class Link {
     return this.state.kind === 'open' && !!this.session && !this.session.closed
   }
 
+  /**
+   * 받기를 멈춘다 — 이 세션에 채널 글이 들어가지 않음(⑨). 멈춤으로 고정해 로그인 · 조직 바꾸기 · 도구가 다시 열지 않게
+   * (다시 열면 방을 붙잡고 아무것도 받지 못한다 — 메시지가 다른 곳으로도 가지 못함). 새 세션을 열면 풀린다
+   */
+  halt(code: 'channel'): void {
+    this.halted = code
+    this.stopClient()
+    this.state = { kind: 'stopped', reason: 'closed', code }
+  }
+
   /** 닫고 처음부터 — 로그인 · 조직 바꾸기 뒤. 겹쳐 부르면 하나로 · 붙기 시작했으면 true */
   restart(): Promise<boolean> {
+    if (this.halted) return Promise.resolve(false)
     this.restarting ??= (async () => {
       this.stopClient()
       const ok = await this.prepare()
@@ -461,7 +474,9 @@ export class Link {
         this.save({ server })
         const org = await this.pickOrg(result.orgs, cfg.server === server ? cfg.org : undefined)
         this.stopClient()
-        if (org) {
+        if (this.halted) {
+          // 로그인은 됐다 — 이 세션은 채널이 꺼져 받지 않는다(새 세션에서)
+        } else if (org) {
           this.state = { kind: 'connecting' }
           this.start()
         } else this.state = { kind: 'no_org', orgs: result.orgs }

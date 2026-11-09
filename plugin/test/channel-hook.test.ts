@@ -37,6 +37,12 @@ describe('채널 도착 훅(channel.sh)', () => {
     expect(existsSync(join(home, `chan-${process.pid}.seen`))).toBe(false)
     expect(run(home, 'stop', '{}').stdout).toBe('')
     expect(existsSync(join(home, `chan-${process.pid}.idle`))).toBe(true)
+    // 도구를 부르면 다시 일하는 중(다른 Stop 훅이 턴을 막아 이어서 일할 때)
+    const before = Number(readFileSync(join(home, `chan-${process.pid}.busy`), 'utf8'))
+    expect(run(home, 'tool', '{}').stdout).toBe('')
+    expect(
+      Number(readFileSync(join(home, `chan-${process.pid}.busy`), 'utf8')),
+    ).toBeGreaterThanOrEqual(before)
   })
 
   it('훅 등록 — 프롬프트 · 끝에 이 스크립트', () => {
@@ -45,5 +51,8 @@ describe('채널 도착 훅(channel.sh)', () => {
     }
     expect(h.hooks['UserPromptSubmit']![0]!.hooks[0]!.command).toContain('channel.sh" prompt')
     expect(h.hooks['Stop']![0]!.hooks[0]!.command).toContain('channel.sh" stop')
+    expect(
+      h.hooks['PreToolUse']!.some((x) => x.hooks[0]!.command.includes('channel.sh" tool')),
+    ).toBe(true)
   })
 })

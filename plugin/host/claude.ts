@@ -33,10 +33,10 @@ export function createClaudeHost(
   o: { home: string; env?: NodeJS.ProcessEnv },
 ): Host {
   const env = o.env ?? process.env
-  const teamCheck = teamFromArgs(parentArgs(env))
+  const teamCheck = teamFromArgs(parentArgs(env), env.CLAUDE_CODE_ENTRYPOINT)
   /** 이 세션에 채널 글이 들어가는 것을 봤다 — 그 뒤로는 보내면 끝 */
   let delivered = false
-  const idleMs = Number(env.MESHWORK_CHANNEL_WAIT_MS ?? 5_000)
+  const idleMs = Number(env.MESHWORK_CHANNEL_WAIT_MS ?? 60_000)
   return {
     sessionId: env.CLAUDE_CODE_SESSION_ID ?? '',
     isTeam: teamCheck === 'team',
@@ -59,6 +59,7 @@ export function createClaudeHost(
         read: () => readMarks(o.home),
         sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
         idleMs,
+        done: () => delivered,
       })
       delivered = true
     },

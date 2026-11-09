@@ -31,9 +31,15 @@ describe('팀 세션 판단 — 부모 claude 의 실행 명령(채널 플래그
     )
   })
 
-  it('한 번 묻고 끝나는(-p · --print) 실행은 팀 세션이 아니다', () => {
-    expect(teamFromArgs('claude -p hi --channels plugin:meshwork@meshwork')).toBe('print')
-    expect(teamFromArgs('claude --print --channels plugin:meshwork@meshwork')).toBe('print')
+  it('한 번 묻고 끝나는(-p) 실행은 팀 세션이 아니다 — 진입점으로(실측 대화형 cli · -p sdk-cli)', () => {
+    expect(teamFromArgs('claude -p hi --channels plugin:meshwork@meshwork', 'sdk-cli')).toBe(
+      'print',
+    )
+    expect(teamFromArgs('claude --channels plugin:meshwork@meshwork', 'cli')).toBe('team')
+    // 첫 프롬프트 안의 「-p」 는 실행 방식이 아니다(명령 글에는 따옴표가 없다)
+    expect(
+      teamFromArgs('claude --channels plugin:meshwork@meshwork -p 옵션 설명해 줘', 'cli'),
+    ).toBe('team')
   })
 
   it('명령을 못 읽으면 팀 세션이 아니다(받지 않음 — 서버가 보관)', () => {

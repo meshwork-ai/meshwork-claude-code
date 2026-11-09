@@ -4,9 +4,12 @@
  *
  * 훅(channel.sh)이 claude 프로세스마다 표시를 적는다(실측 2.1.314):
  *  - `UserPromptSubmit` — 일하기 시작(busy) · 글에 이 플러그인의 `<channel …>` 이 있으면 「봄」(seen). 쉬는 중이면 0.1초 뒤
+ *  - `PreToolUse` — 일하는 중(busy). 다른 플러그인의 Stop 훅이 턴을 막아 이어서 일하는 동안 쉬는 중으로 보지 않게
  *  - `Stop` — 쉬는 중(idle). AI 가 일하는 중에 온 채널 글은 턴이 끝난 직후에야 훅이 불린다
+ * MCP 서버는 개발 채널 경고 화면을 넘긴 뒤에 뜬다(실측 — 경고를 오래 읽어도 시계가 돌지 않음)
  *
- * 쉬는 중인데 몇 초 안에 「봄」 이 없으면 꺼진 것 — 받음 처리를 하지 않고(서버가 보관 · 다시 보냄) 이 세션은 받기를 멈춘다.
+ * 쉬는 중인데 1분 안에 「봄」 이 없으면 꺼진 것 — 받음 처리를 하지 않고(서버가 보관 · 다시 보냄) 이 세션은 받기를 멈춘다.
+ * (쉬는 중 표시가 실제보다 이르게 찍히는 경우 — 다른 Stop 훅 · 내장 명령 — 를 넉넉히 견디게 1분)
  * 일하는 중이면 끝날 때까지 기다린다(끝 · 기다림 모두 메시지를 잃지 않는다)
  */
 import { readFileSync } from 'node:fs'
@@ -29,6 +32,8 @@ export interface ConfirmDeps {
   sleep(ms: number): Promise<void>
   /** 쉬는 중에 「봄」 을 기다리는 시간 */
   idleMs: number
+  /** 다른 글이 이미 들어간 것을 봤다 — 그러면 이 글도 기다리지 않는다(함께 기다리던 글) */
+  done?(): boolean
 }
 
 /** sentAt(ms)에 보낸 채널 글이 AI 에게 들어갈 때까지 — 꺼졌으면 ChannelDropped */
@@ -36,6 +41,7 @@ export async function waitDelivered(sentAt: number, d: ConfirmDeps): Promise<voi
   // 훅이 초 단위로 적는 기기도 있다 — 보낸 그 초부터 본다
   const from = Math.floor(sentAt / 1000) * 1000
   for (;;) {
+    if (d.done?.()) return
     const m = d.read()
     if ((m.seen ?? 0) >= from) return
     const busy = (m.busy ?? 0) > (m.idle ?? 0)

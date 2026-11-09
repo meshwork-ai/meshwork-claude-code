@@ -42,6 +42,8 @@ export class Plugin {
   orgNotice: { text: string; endsAt: string } | null = null
   /** 채널 글이 세션에 들어가지 않음(채널 플래그 · 조직 정책 · 훅 꺼짐) — 받기를 멈췄다 */
   channelDropped = false
+  /** 사용자가 「답하지 않음」 으로 둔 받은 질문 — 알린 것(한 번만). 답장은 서버가 거절한다(까닭이 그대로 보이게 따로 둠) */
+  private readonly skipped = new Set<string>()
   serviceNotices: EvData<'service.notice'>['notices'] = []
   private sentName?: string
   private ready!: () => void
@@ -100,7 +102,7 @@ export class Plugin {
       if (e instanceof ChannelDropped && !this.channelDropped) {
         this.channelDropped = true
         this.log('채널 알림이 세션에 들어가지 않음 — 받기를 멈춤')
-        this.link.close()
+        this.link.halt('channel')
         this.exportState()
       }
       throw e
@@ -220,6 +222,7 @@ export class Plugin {
       this.received.set(m.thread, { from: m.from.name, ...(m.room ? { room: m.room } : {}) })
       this.answeredElsewhere.delete(m.thread)
       this.repliedHere.delete(m.thread)
+      this.skipped.delete(m.thread)
     }
     if (m.from) this.dir.remember(m.from.member, m.from.name)
     // 넣지 못하면 던진다 — client-core 가 ack 하지 않고 다시 받는다
@@ -279,7 +282,8 @@ export class Plugin {
   private async onSkipped(d: EvData<'thread.skipped'>): Promise<void> {
     const got = this.received.get(d.thread)
     if (!got || this.repliedHere.has(d.thread) || this.answeredElsewhere.has(d.thread)) return
-    this.answeredElsewhere.add(d.thread)
+    if (this.skipped.has(d.thread)) return
+    // 알리고 나서 기억한다 — 넣기가 실패하면 다시 받을 때 다시 알린다
     await this.say(
       `[답하지 않음] '${got.from}'님의 질문은 사용자가 답하지 않기로 했습니다 — 이 질문에는 답하지 말고 하던 일을 멈추세요.`,
       {
@@ -288,6 +292,7 @@ export class Plugin {
         ...(got.room ? { room: this.roomLabel(got.room) } : {}),
       },
     )
+    this.skipped.add(d.thread)
   }
 
   private async onAssigned(d: EvData<'thread.assigned'>): Promise<void> {
