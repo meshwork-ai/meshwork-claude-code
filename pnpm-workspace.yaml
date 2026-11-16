@@ -8,3 +8,6 @@ minimumReleaseAgeExclude:
   - '@meshwork-ai/*'
 allowBuilds:
   esbuild: true
+overrides:
+  # 압축된 요청 뒤 남는 바이트로 서비스 거부 — MCP SDK 의 express 가 가져옴(앱 저장소와 같게)
+  body-parser@>=2.0.0 <2.4.0: 2.4.0
