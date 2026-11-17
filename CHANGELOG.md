@@ -3,6 +3,11 @@
 버전을 올리면 여기에 `## <버전> · <제목> — <날짜>` 를 적는다(빌드가 확인한다). 이사 날까지는 0.x, 이사 날 1.0.0.
 team-relay 시절의 내역은 [docs/team-relay-changelog.md](docs/team-relay-changelog.md).
 
+## 0.3.1 · 보안 판 — 2026-11-17
+
+- 함께 묶인 패키지의 보안 판 — MCP SDK 가 쓰는 hono 4.13.18 · @hono/node-server 2.1.8 · fast-uri 3.1.9 · express 의 body-parser 2.4.0
+  (동작은 그대로)
+
 ## 0.3.0 · 메시지가 조용히 사라지지 않게 — 2026-11-09
 
 - **켜는 법이 플래그 하나** — 팀 세션은 `claude --dangerously-load-development-channels plugin:meshwork@meshwork`(alias

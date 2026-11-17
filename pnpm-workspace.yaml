@@ -11,3 +11,5 @@ allowBuilds:
 overrides:
   # 압축된 요청 뒤 남는 바이트로 서비스 거부 — MCP SDK 의 express 가 가져옴(앱 저장소와 같게)
   body-parser@>=2.0.0 <2.4.0: 2.4.0
+  # 딸려 온 패키지 보안 판(Dependabot) — 고친 판이 다음 큰 판에만 있는 것. ESLint 만 씀(앱 저장소와 같게)
+  minimatch@>=7.0.0 <11.0.1: ^11.0.1
